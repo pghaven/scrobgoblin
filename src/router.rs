@@ -26,11 +26,12 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 async fn validate_token_handler() -> Json<serde_json::Value> {
+    println!("[REQ] GET /validate-token");
     Json(serde_json::json!({
         "code": 200,
         "message": "Token valid.",
         "valid": true,
-        "user_name": "scroblin"
+        "user_name": "paulg8888"
     }))
 }
 
@@ -38,6 +39,7 @@ async fn navidrome_handler(
     State(state): State<AppState>,
     Json(body): Json<sources::navidrome::LbPayload>,
 ) -> StatusCode {
+    println!("[REQ] POST /1/submit-listens ({} listen(s))", body.payload.len());
     match sources::navidrome::parse(&body) {
         Ok(event) if threshold::qualifies(&event) => {
             tokio::spawn(targets::fan_out(state.cfg, state.client, event));

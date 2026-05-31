@@ -24,8 +24,9 @@ pub async fn submit_to(
         .await?;
 
     if !resp.status().is_success() {
+        let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        anyhow::bail!("Koito error: {}", text);
+        anyhow::bail!("Koito HTTP {} | {}", status, text);
     }
     Ok(())
 }
