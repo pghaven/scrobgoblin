@@ -12,7 +12,7 @@ A small, efficient Rust service that receives play webhooks from Navidrome, Plex
 
 | Target | Protocol |
 |--------|----------|
-| Koito | ListenBrainz-compatible API |
+| Koito | ListenBrainz-compatible API at `/apis/listenbrainz/1/` |
 | ListenBrainz | ListenBrainz API |
 | Last.fm | track.scrobble with MD5 signature |
 
@@ -55,6 +55,14 @@ session_key   = "your-lastfm-session-key"
 ## Scrobble threshold
 
 Tracks under 30 seconds are silently ignored. If a track has no duration in the webhook payload, it is always scrobbled.
+
+## Navidrome notes
+
+Navidrome sends two event types to `/1/submit-listens`:
+- `listen_type: "playing_now"` — fired when a track starts. Scroblin returns `{"status":"ok"}` immediately without submitting to any target.
+- `listen_type: "single"` — fired when the track scrobbles (past the threshold). This is fanned out to all targets.
+
+Navidrome requires a `{"status": "ok"}` JSON body in the response. An empty HTTP 200 is treated as a failure and the scrobble is queued for indefinite retry.
 
 ## Retry behavior
 

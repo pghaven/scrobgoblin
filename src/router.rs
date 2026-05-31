@@ -1,6 +1,7 @@
 use axum::{
     extract::{Multipart, Request, State},
     http::StatusCode,
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
@@ -42,20 +43,30 @@ async fn validate_token_handler() -> Json<serde_json::Value> {
     }))
 }
 
+fn lb_ok() -> impl IntoResponse {
+    (StatusCode::OK, Json(serde_json::json!({"status": "ok"})))
+}
+
 async fn navidrome_handler(
     State(state): State<AppState>,
     Json(body): Json<sources::navidrome::LbPayload>,
-) -> StatusCode {
-    println!("[REQ] POST /1/submit-listens ({} listen(s))", body.payload.len());
+) -> impl IntoResponse {
+    if body.listen_type.as_deref() == Some("playing_now") {
+        return lb_ok().into_response();
+    }
+    let ts_info = body.payload.first()
+        .map(|l| format!(" listened_at={}", l.listened_at.map(|t| t.to_string()).unwrap_or_else(|| "none".into())))
+        .unwrap_or_default();
+    println!("[REQ] POST /1/submit-listens ({} listen(s)){}",  body.payload.len(), ts_info);
     match sources::navidrome::parse(&body) {
         Ok(event) if threshold::qualifies(&event) => {
             tokio::spawn(targets::fan_out(state.cfg, state.client, event));
-            StatusCode::OK
+            lb_ok().into_response()
         }
-        Ok(_) => StatusCode::OK,
+        Ok(_) => lb_ok().into_response(),
         Err(e) => {
             eprintln!("[WARN] Navidrome parse error: {}", e);
-            StatusCode::BAD_REQUEST
+            (StatusCode::BAD_REQUEST, Json(serde_json::json!({"status": "error"}))).into_response()
         }
     }
 }

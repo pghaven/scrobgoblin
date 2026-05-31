@@ -17,7 +17,7 @@ pub async fn submit_to(
 ) -> Result<()> {
     let body = crate::targets::listenbrainz::build_lb_payload(event);
     let resp = client
-        .post(format!("{}/1/submit-listens", base_url))
+        .post(format!("{}/apis/listenbrainz/1/submit-listens", base_url))
         .header("Authorization", format!("Token {}", api_key))
         .json(&body)
         .send()
@@ -52,7 +52,7 @@ mod tests {
     async fn submit_to_posts_lb_payload() {
         let mut server = mockito::Server::new_async().await;
         let mock = server
-            .mock("POST", "/1/submit-listens")
+            .mock("POST", "/apis/listenbrainz/1/submit-listens")
             .match_header("authorization", "Token koito-key")
             .with_status(200)
             .with_body(r#"{"status":"ok"}"#)
@@ -70,7 +70,7 @@ mod tests {
     async fn submit_to_returns_error_on_non_200() {
         let mut server = mockito::Server::new_async().await;
         server
-            .mock("POST", "/1/submit-listens")
+            .mock("POST", "/apis/listenbrainz/1/submit-listens")
             .with_status(401)
             .with_body("unauthorized")
             .create_async()

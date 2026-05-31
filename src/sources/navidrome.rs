@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct LbPayload {
+    pub listen_type: Option<String>,
     pub payload: Vec<LbListen>,
 }
 
@@ -101,5 +102,19 @@ mod tests {
     fn returns_error_on_empty_payload() {
         let body: LbPayload = serde_json::from_str(r#"{"payload": []}"#).unwrap();
         assert!(parse(&body).is_err());
+    }
+
+    #[test]
+    fn captures_playing_now_listen_type() {
+        let body: LbPayload = serde_json::from_str(r#"{
+            "listen_type": "playing_now",
+            "payload": [{
+                "track_metadata": {
+                    "artist_name": "Artist",
+                    "track_name": "Track"
+                }
+            }]
+        }"#).unwrap();
+        assert_eq!(body.listen_type.as_deref(), Some("playing_now"));
     }
 }

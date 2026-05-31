@@ -2,8 +2,35 @@ services:
   scroblin:
     build: .
     image: scroblin:latest
+    container_name: scroblin
+    restart: unless-stopped
     ports:
       - "4567:4567"
     volumes:
       - ./config.toml:/app/config.toml:ro
-    restart: unless-stopped
+    extra_hosts:
+      - "koito.geary.quest:host-gateway"
+    networks:
+      - proxiable
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxiable"
+      # HTTP
+      - "traefik.http.routers.scroblin_http.rule=Host(`scroblin.geary.quest`)"
+      - "traefik.http.routers.scroblin_http.entrypoints=web"
+      - "traefik.http.routers.scroblin_http.middlewares=redirect-to-https@file"
+      - "traefik.http.services.scroblin.loadbalancer.server.port=4567"
+      # HTTPS
+      - "traefik.http.routers.scroblin_https.rule=Host(`scroblin.geary.quest`)"
+      - "traefik.http.routers.scroblin_https.entrypoints=websecure"
+      - "traefik.http.routers.scroblin_https.tls=true"
+      - "traefik.http.routers.scroblin_https.tls.certresolver=cloudflare"
+      - "traefik.http.services.scroblin.loadbalancer.server.port=4567"
+
+networks:
+  proxiable:
+    external: true

@@ -44,5 +44,12 @@ Webhook POST → source parser → PlayEvent → threshold::qualifies → fan_ou
 
 - Last.fm signature: collect params into `BTreeMap`, iterate to build `key=value` string (no separator), append `shared_secret`, MD5 hex encode
 - Koito auth: ListenBrainz-compatible `Authorization: Token {api_key}` — not session cookie
+- **Koito submit endpoint**: `{base_url}/apis/listenbrainz/1/submit-listens` — NOT `/1/submit-listens`. Koito's LB-compatible API lives under `/apis/listenbrainz/1/`.
 - Duration units: Plex sends milliseconds (÷1000), Jellyfin sends `RunTimeTicks` (÷10,000,000), Navidrome sends seconds or `duration_ms`
 - Non-qualifying source events (wrong type) return `Err` with string containing "not a scrobble event" or "not a PlaybackStopped event" — router pattern-matches these to return 200
+
+## Navidrome Gotchas
+
+**`playing_now` events:** Navidrome sends `listen_type: "playing_now"` to `/1/submit-listens` when a track starts, and `listen_type: "single"` when it scrobbles. The handler must filter out `playing_now` events before fan-out — otherwise every song start triggers a duplicate scrobble submission. Koito does not deduplicate; Last.fm and ListenBrainz do. The filter is in `navidrome_handler` in `router.rs`.
+
+**Response body required:** The Navidrome ListenBrainz client checks the response body for `{"status": "ok"}`. Returning a bare HTTP 200 with no body causes Navidrome to log `EOF` and treat the scrobble as failed, queuing it for indefinite retry. The handler must return `Json({"status": "ok"})`, not just `StatusCode::OK`. This was confirmed in production: a backlog of ~2 hours of queued scrobbles was released as soon as the correct response body was added.
