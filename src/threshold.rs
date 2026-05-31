@@ -1,5 +1,4 @@
-use crate::event::{PlayEvent, Source};
-use chrono::Utc;
+use crate::event::PlayEvent;
 
 pub fn qualifies(event: &PlayEvent) -> bool {
     match event.duration_secs {
@@ -11,6 +10,8 @@ pub fn qualifies(event: &PlayEvent) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::Source;
+    use chrono::Utc;
 
     fn make_event(duration_secs: Option<u64>) -> PlayEvent {
         PlayEvent {
