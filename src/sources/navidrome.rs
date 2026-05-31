@@ -1,4 +1,4 @@
-use crate::event::{PlayEvent, Source};
+use crate::event::{NowPlayingEvent, PlayEvent, Source};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -49,6 +49,24 @@ pub fn parse(body: &LbPayload) -> Result<PlayEvent> {
         track: meta.track_name.clone(),
         duration_secs,
         played_at,
+        source: Source::Navidrome,
+    })
+}
+
+pub fn parse_now_playing(body: &LbPayload) -> Result<NowPlayingEvent> {
+    let listen = body.payload.first().ok_or_else(|| anyhow!("empty payload"))?;
+    let meta = &listen.track_metadata;
+
+    let duration_secs = meta.additional_info.as_ref().and_then(|info| {
+        info.duration
+            .or_else(|| info.duration_ms.map(|ms| ms / 1000))
+    });
+
+    Ok(NowPlayingEvent {
+        artist: meta.artist_name.clone(),
+        album: meta.release_name.clone(),
+        track: meta.track_name.clone(),
+        duration_secs,
         source: Source::Navidrome,
     })
 }
@@ -116,5 +134,32 @@ mod tests {
             }]
         }"#).unwrap();
         assert_eq!(body.listen_type.as_deref(), Some("playing_now"));
+    }
+
+    #[test]
+    fn parses_now_playing_event() {
+        let body: LbPayload = serde_json::from_str(r#"{
+            "listen_type": "playing_now",
+            "payload": [{
+                "track_metadata": {
+                    "artist_name": "Portishead",
+                    "track_name": "Glory Box",
+                    "release_name": "Dummy",
+                    "additional_info": { "duration": 249 }
+                }
+            }]
+        }"#).unwrap();
+        let event = parse_now_playing(&body).unwrap();
+        assert_eq!(event.artist, "Portishead");
+        assert_eq!(event.track, "Glory Box");
+        assert_eq!(event.album.as_deref(), Some("Dummy"));
+        assert_eq!(event.duration_secs, Some(249));
+        assert_eq!(event.source, crate::event::Source::Navidrome);
+    }
+
+    #[test]
+    fn now_playing_returns_error_on_empty_payload() {
+        let body: LbPayload = serde_json::from_str(r#"{"payload": []}"#).unwrap();
+        assert!(parse_now_playing(&body).is_err());
     }
 }
