@@ -1,6 +1,6 @@
 use axum::{
     extract::{Multipart, Request, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -33,14 +33,40 @@ async fn unmatched_handler(req: Request) -> StatusCode {
     StatusCode::NOT_FOUND
 }
 
-async fn validate_token_handler() -> Json<serde_json::Value> {
+async fn validate_token_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    if !authorized(&headers, &state.cfg.server.webhook_token) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({
+            "code": 401,
+            "message": "Token invalid.",
+            "valid": false
+        }))).into_response();
+    }
     println!("[REQ] GET /validate-token");
-    Json(serde_json::json!({
+    (StatusCode::OK, Json(serde_json::json!({
         "code": 200,
         "message": "Token valid.",
         "valid": true,
-        "user_name": "paulg8888"
-    }))
+        "user_name": "scroblin"
+    }))).into_response()
+}
+
+/// Returns true if the request is authorized.
+/// If `webhook_token` is None (not configured) every request is allowed —
+/// suitable for internal-only deployments. If it is set, the request must
+/// carry `Authorization: Token <webhook_token>`.
+fn authorized(headers: &HeaderMap, expected: &Option<String>) -> bool {
+    let Some(expected_token) = expected else {
+        return true;
+    };
+    let provided = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Token "))
+        .unwrap_or("");
+    provided == expected_token.as_str()
 }
 
 fn lb_ok() -> impl IntoResponse {
@@ -49,8 +75,12 @@ fn lb_ok() -> impl IntoResponse {
 
 async fn navidrome_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<sources::navidrome::LbPayload>,
 ) -> impl IntoResponse {
+    if !authorized(&headers, &state.cfg.server.webhook_token) {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"status": "error", "error": "invalid token"}))).into_response();
+    }
     if body.listen_type.as_deref() == Some("playing_now") {
         return lb_ok().into_response();
     }

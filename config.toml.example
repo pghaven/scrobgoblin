@@ -1,5 +1,10 @@
 [server]
 port = 4567
+# Set this to the same value as ND_LISTENBRAINZ_APIKEY in Navidrome.
+# All requests to /1/submit-listens and /1/validate-token must then carry
+# Authorization: Token <webhook_token>. Omit or leave blank to allow all
+# requests (safe only if the port is not reachable from the internet).
+webhook_token = "your-webhook-token"
 
 [koito]
 base_url = "http://koito.yourdomain.com"

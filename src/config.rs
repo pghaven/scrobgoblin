@@ -11,6 +11,10 @@ pub struct Config {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServerConfig {
     pub port: u16,
+    /// If set, all Navidrome/ListenBrainz requests must present
+    /// `Authorization: Token <webhook_token>`. Leave unset for
+    /// internal-only deployments where the port is never exposed externally.
+    pub webhook_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
