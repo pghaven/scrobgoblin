@@ -71,6 +71,7 @@ mod tests {
             api_key: "myapikey".to_string(),
             shared_secret: "mysecret".to_string(),
             session_key: "mysession".to_string(),
+            forward_now_playing: None,
         }
     }
 

@@ -9,11 +9,14 @@ webhook_token = "your-webhook-token"
 [koito]
 base_url = "http://koito.yourdomain.com"
 api_key  = "your-koito-api-key"
+# forward_now_playing = false  # default false — enable only after confirming Koito deduplicates
 
 [listenbrainz]
 user_token = "your-listenbrainz-token"
+# forward_now_playing = true   # default true
 
 [lastfm]
 api_key       = "your-lastfm-api-key"
 shared_secret = "your-lastfm-shared-secret"
 session_key   = "your-lastfm-session-key"
+# forward_now_playing = true   # default true
