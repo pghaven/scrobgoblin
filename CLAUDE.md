@@ -1,0 +1,48 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Git Remote
+
+This project is hosted on Forgejo at forgejo.geary.quest. Use standard `git push` — never `gh` CLI. The `fj` CLI may be used for issues/PRs if needed.
+
+## Common Commands
+
+```bash
+cargo build             # Build debug
+cargo build --release   # Build release binary
+cargo run               # Run locally (requires config.toml in CWD)
+cargo test              # Run all tests
+cargo test <name>       # Run a single test by name
+cargo check             # Fast type-check without building
+docker compose up -d    # Run via Docker (requires config.toml mounted)
+docker build -t scroblin:latest .
+```
+
+## Architecture
+
+Single-binary axum HTTP server. Three webhook endpoints receive play events, normalize them into a canonical `PlayEvent`, apply a duration threshold check, then fan out to three scrobble targets concurrently.
+
+```
+Webhook POST → source parser → PlayEvent → threshold::qualifies → fan_out
+                                                                      ├── koito::submit
+                                                                      ├── listenbrainz::submit
+                                                                      └── lastfm::submit
+```
+
+**Sources** (`src/sources/`): Each parses its native webhook format into `PlayEvent`. Navidrome sends ListenBrainz format JSON; Plex sends multipart/form-data with a JSON "payload" field; Jellyfin sends JSON. Only `media.scrobble` (Plex) and `PlaybackStopped` (Jellyfin) events qualify — others return 200 silently.
+
+**Targets** (`src/targets/`): Each exposes `submit_to(base_url, credentials, client, event)` for testability with mockito. Koito and ListenBrainz share `build_lb_payload()` from `listenbrainz.rs`. Last.fm uses MD5 signature via `BTreeMap` (alphabetical param ordering guaranteed).
+
+**Threshold** (`src/threshold.rs`): Tracks under 30 seconds are discarded. If duration is absent, the event always qualifies (webhooks fire at completion, not mid-play).
+
+**Fan-out** (`src/targets/mod.rs`): Three `tokio::spawn` tasks run concurrently, each retrying up to 3 times with 1s → 4s backoff. All three are joined before `fan_out` returns.
+
+**Router** (`src/router.rs`): `AppState` holds `Arc<Config>` and a shared `reqwest::Client`. Fan-out is detached via `tokio::spawn` so the webhook handler returns 200 immediately.
+
+## Key Patterns
+
+- Last.fm signature: collect params into `BTreeMap`, iterate to build `key=value` string (no separator), append `shared_secret`, MD5 hex encode
+- Koito auth: ListenBrainz-compatible `Authorization: Token {api_key}` — not session cookie
+- Duration units: Plex sends milliseconds (÷1000), Jellyfin sends `RunTimeTicks` (÷10,000,000), Navidrome sends seconds or `duration_ms`
+- Non-qualifying source events (wrong type) return `Err` with string containing "not a scrobble event" or "not a PlaybackStopped event" — router pattern-matches these to return 200

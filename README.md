@@ -4,11 +4,11 @@ A small, efficient Rust service that receives play webhooks from Navidrome, Plex
 
 ## Sources → Targets
 
-| Source | Webhook URL |
-|--------|-------------|
-| Navidrome | `http://scroblin:4567/webhooks/navidrome` |
-| Plex | `http://scroblin:4567/webhooks/plex` |
-| Jellyfin | `http://scroblin:4567/webhooks/jellyfin` |
+| Source | Configuration |
+|--------|--------------|
+| Navidrome | Set `ND_LISTENBRAINZ_BASEURL=http://scroblin:4567` — Navidrome uses the ListenBrainz API paths (`/1/submit-listens`, `/1/validate-token`) |
+| Plex | Webhook URL: `http://scroblin:4567/webhooks/plex` |
+| Jellyfin | Webhook URL: `http://scroblin:4567/webhooks/jellyfin` |
 
 | Target | Protocol |
 |--------|----------|

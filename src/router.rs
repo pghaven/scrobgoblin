@@ -1,7 +1,7 @@
 use axum::{
     extract::{Multipart, State},
     http::StatusCode,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 use std::sync::Arc;
@@ -16,10 +16,22 @@ pub struct AppState {
 
 pub fn build_router(state: AppState) -> Router {
     Router::new()
-        .route("/webhooks/navidrome", post(navidrome_handler))
+        // Navidrome uses ND_LISTENBRAINZ_BASEURL and calls the real LB API paths
+        .route("/validate-token", get(validate_token_handler))
+        .route("/1/validate-token", get(validate_token_handler))
+        .route("/1/submit-listens", post(navidrome_handler))
         .route("/webhooks/plex", post(plex_handler))
         .route("/webhooks/jellyfin", post(jellyfin_handler))
         .with_state(state)
+}
+
+async fn validate_token_handler() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "code": 200,
+        "message": "Token valid.",
+        "valid": true,
+        "user_name": "scroblin"
+    }))
 }
 
 async fn navidrome_handler(
