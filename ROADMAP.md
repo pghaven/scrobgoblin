@@ -12,64 +12,15 @@ This closes the public-exposure risk from the Traefik routing at `https://scrobl
 
 ---
 
-## 1 — Per-target "now playing" forwarding
+## ✅ Done — Mobile client scrobbling
 
-**Status:** Not started.
+**Status:** Confirmed working 2026-05-31.
 
-### Background
-
-Navidrome sends two event types to `/1/submit-listens`:
-- `listen_type: "playing_now"` — track started; no scrobble yet
-- `listen_type: "single"` — track completed; actual scrobble
-
-Currently Scroblin drops `playing_now` events entirely. This is correct for Koito and Last.fm (which don't support it well or deduplicate poorly), but wasteful for ListenBrainz, which has a proper "now playing" display powered by these events.
-
-Last.fm also has a `track.updateNowPlaying` API method that updates the "now playing" widget on a user's profile. Koito's LB-compatible API may accept `playing_now` submissions — untested.
-
-### Proposed behaviour
-
-Add per-target flags to `config.toml` to control whether `playing_now` events are forwarded:
-
-```toml
-[listenbrainz]
-user_token = "..."
-forward_now_playing = true   # default true — LB handles it natively
-
-[lastfm]
-...
-forward_now_playing = true   # default true — uses track.updateNowPlaying
-
-[koito]
-...
-forward_now_playing = false  # default false — Koito doesn't deduplicate
-```
-
-### Implementation notes
-
-- **ListenBrainz:** Forward `playing_now` as-is to `/1/submit-listens` with `listen_type: "playing_now"`. No `listened_at` needed.
-- **Last.fm:** Call `track.updateNowPlaying` with the same MD5-signed form params as `track.scrobble`, but without `timestamp[0]`. Duration is optional.
-- **Koito:** Off by default until confirmed that Koito deduplicates or shows now-playing correctly. Test by enabling and watching the Koito UI.
-- `fan_out` needs to branch on `event.is_now_playing: bool` (or a separate `NowPlayingEvent` type) to call the right submit function per target.
+Scrobbling from both the Navidrome web UI and mobile Subsonic clients is confirmed working.
 
 ---
 
-## 2 — Mobile client scrobbling
-
-**Status:** Untested.
-
-Scrobbling from the Navidrome web UI is confirmed working. Scrobbling from mobile clients (e.g. Symfonium, DSub, Tempo) that connect via the Subsonic API is unverified.
-
-Mobile clients use Navidrome's Subsonic API layer rather than the web UI, and it is unclear whether Navidrome's ListenBrainz forwarding is triggered by Subsonic API playback or only by the web player. 
-
-### Test plan
-
-- Play a full track (>30s) from a mobile Subsonic client connected to Navidrome
-- Confirm `[OK]` log lines appear in Scroblin for all three targets
-- If no scrobble appears, check whether Navidrome's ListenBrainz integration is scoped to the web player only
-
----
-
-## 3 — Plex and Jellyfin validation
+## 1 — Plex and Jellyfin webhook authentication
 
 **Status:** Not started.
 
@@ -77,7 +28,20 @@ The Plex and Jellyfin webhook handlers are currently unauthenticated. Both platf
 - **Plex:** sends `X-Plex-Token` header — validate against a token in config
 - **Jellyfin:** webhook plugin supports a shared secret sent as a custom header — validate against a secret in config
 
-Low priority if the Docker port is not externally reachable, but worth adding for completeness.
+Low effort, closes a real gap since Scroblin is externally exposed via Traefik.
+
+---
+
+## 2 — Per-target "now playing" forwarding
+
+**Status:** Not started. Implementation plan at `docs/superpowers/plans/2026-05-31-now-playing.md`.
+
+Navidrome sends `listen_type: "playing_now"` to `/1/submit-listens` when a track starts. Scroblin currently drops these silently. Forwarding them enables:
+- **ListenBrainz:** "now playing" display on user profile
+- **Last.fm:** "now playing" widget via `track.updateNowPlaying`
+- **Koito:** optional, off by default until deduplication behaviour is confirmed
+
+Per-target `forward_now_playing` config flags control which targets receive these events. Defaults: ListenBrainz `true`, Last.fm `true`, Koito `false`.
 
 ---
 
