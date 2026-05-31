@@ -1,0 +1,9 @@
+services:
+  scroblin:
+    build: .
+    image: scroblin:latest
+    ports:
+      - "4567:4567"
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+    restart: unless-stopped
