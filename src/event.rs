@@ -10,6 +10,15 @@ pub struct PlayEvent {
     pub source: Source,
 }
 
+#[derive(Debug, Clone)]
+pub struct NowPlayingEvent {
+    pub artist: String,
+    pub album: Option<String>,
+    pub track: String,
+    pub duration_secs: Option<u64>,
+    pub source: Source,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Source {
     Navidrome,
@@ -24,5 +33,22 @@ impl std::fmt::Display for Source {
             Source::Plex => write!(f, "Plex"),
             Source::Jellyfin => write!(f, "Jellyfin"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn now_playing_event_source_display() {
+        let e = NowPlayingEvent {
+            artist: "Radiohead".to_string(),
+            album: Some("OK Computer".to_string()),
+            track: "Karma Police".to_string(),
+            duration_secs: Some(264),
+            source: Source::Navidrome,
+        };
+        assert_eq!(format!("{}", e.source), "Navidrome");
     }
 }
