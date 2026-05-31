@@ -53,7 +53,23 @@ forward_now_playing = false  # default false — Koito doesn't deduplicate
 
 ---
 
-## 2 — Plex and Jellyfin validation
+## 2 — Mobile client scrobbling
+
+**Status:** Untested.
+
+Scrobbling from the Navidrome web UI is confirmed working. Scrobbling from mobile clients (e.g. Symfonium, DSub, Tempo) that connect via the Subsonic API is unverified.
+
+Mobile clients use Navidrome's Subsonic API layer rather than the web UI, and it is unclear whether Navidrome's ListenBrainz forwarding is triggered by Subsonic API playback or only by the web player. 
+
+### Test plan
+
+- Play a full track (>30s) from a mobile Subsonic client connected to Navidrome
+- Confirm `[OK]` log lines appear in Scroblin for all three targets
+- If no scrobble appears, check whether Navidrome's ListenBrainz integration is scoped to the web player only
+
+---
+
+## 3 — Plex and Jellyfin validation
 
 **Status:** Not started.
 
