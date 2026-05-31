@@ -19,6 +19,7 @@ pub fn build_router(state: AppState) -> Router {
         // Navidrome uses ND_LISTENBRAINZ_BASEURL and calls the real LB API paths
         .route("/validate-token", get(validate_token_handler))
         .route("/1/validate-token", get(validate_token_handler))
+        .route("/submit-listens", post(navidrome_handler))
         .route("/1/submit-listens", post(navidrome_handler))
         .route("/webhooks/plex", post(plex_handler))
         .route("/webhooks/jellyfin", post(jellyfin_handler))
@@ -27,7 +28,7 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 async fn unmatched_handler(req: Request) -> StatusCode {
-    eprintln!("[404] {} {}", req.method(), req.uri());
+    eprintln!("[404] {} {}", req.method(), req.uri().path());
     StatusCode::NOT_FOUND
 }
 
