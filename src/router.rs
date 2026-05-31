@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Multipart, State},
+    extract::{Multipart, Request, State},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
@@ -22,7 +22,13 @@ pub fn build_router(state: AppState) -> Router {
         .route("/1/submit-listens", post(navidrome_handler))
         .route("/webhooks/plex", post(plex_handler))
         .route("/webhooks/jellyfin", post(jellyfin_handler))
+        .fallback(unmatched_handler)
         .with_state(state)
+}
+
+async fn unmatched_handler(req: Request) -> StatusCode {
+    eprintln!("[404] {} {}", req.method(), req.uri());
+    StatusCode::NOT_FOUND
 }
 
 async fn validate_token_handler() -> Json<serde_json::Value> {
