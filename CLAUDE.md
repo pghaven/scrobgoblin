@@ -36,17 +36,19 @@ Webhook POST → source parser → PlayEvent → threshold::qualifies → fan_ou
 
 **Threshold** (`src/threshold.rs`): Tracks under 30 seconds are discarded. If duration is absent, the event always qualifies (webhooks fire at completion, not mid-play).
 
-**Fan-out** (`src/targets/mod.rs`): Three `tokio::spawn` tasks run concurrently, each retrying up to 3 times with 1s → 4s backoff. All three are joined before `fan_out` returns.
+**Fan-out** (`src/targets/mod.rs`): `fan_out` spawns 3 tasks concurrently with retry (1s → 4s backoff, joined). `fan_out_now_playing` is fire-and-forget (tasks spawned, not joined, no retry) — `[NOW-FAIL]` on error.
 
-**Router** (`src/router.rs`): `AppState` holds `Arc<Config>` and a shared `reqwest::Client`. Fan-out is detached via `tokio::spawn` so the webhook handler returns 200 immediately.
+**Router** (`src/router.rs`): `AppState` holds `Arc<Config>` and a shared `reqwest::Client`. Fan-out is detached via `tokio::spawn` so the webhook handler returns 200 immediately. Navidrome `playing_now` events are parsed via `sources::navidrome::parse_now_playing` and dispatched to `fan_out_now_playing`; always returns `lb_ok()` regardless of parse outcome.
 
 ## Key Patterns
 
+- Last.fm scrobble: params have `[0]` suffix (`artist[0]`, `track[0]`, `timestamp[0]`); now-playing uses bare names (`artist`, `track`) — different methods, different param formats
 - Last.fm signature: collect params into `BTreeMap`, iterate to build `key=value` string (no separator), append `shared_secret`, MD5 hex encode
 - Koito auth: ListenBrainz-compatible `Authorization: Token {api_key}` — not session cookie
 - **Koito submit endpoint**: `{base_url}/apis/listenbrainz/1/submit-listens` — NOT `/1/submit-listens`. Koito's LB-compatible API lives under `/apis/listenbrainz/1/`.
 - Duration units: Plex sends milliseconds (÷1000), Jellyfin sends `RunTimeTicks` (÷10,000,000), Navidrome sends seconds or `duration_ms`
 - Non-qualifying source events (wrong type) return `Err` with string containing "not a scrobble event" or "not a PlaybackStopped event" — router pattern-matches these to return 200
+- `NowPlayingEvent` vs `PlayEvent`: same fields minus `played_at`; `build_now_playing_payload` (listenbrainz.rs) is reused by Koito since they share the LB wire format
 
 ## Navidrome Gotchas
 

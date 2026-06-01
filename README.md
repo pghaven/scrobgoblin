@@ -59,10 +59,22 @@ Tracks under 30 seconds are silently ignored. If a track has no duration in the 
 ## Navidrome notes
 
 Navidrome sends two event types to `/1/submit-listens`:
-- `listen_type: "playing_now"` — fired when a track starts. Scroblin returns `{"status":"ok"}` immediately without submitting to any target.
-- `listen_type: "single"` — fired when the track scrobbles (past the threshold). This is fanned out to all targets.
+- `listen_type: "playing_now"` — fired when a track starts. Forwarded to configured targets as a "now playing" notification (see Now Playing below).
+- `listen_type: "single"` — fired when the track scrobbles (past the threshold). Fanned out to all targets.
 
 Navidrome requires a `{"status": "ok"}` JSON body in the response. An empty HTTP 200 is treated as a failure and the scrobble is queued for indefinite retry.
+
+## Now playing
+
+Scroblin forwards `playing_now` events to targets that support it. Controlled per-target via `forward_now_playing` in `config.toml`:
+
+| Target | Default | API method |
+|--------|---------|------------|
+| ListenBrainz | `true` | `listen_type: "playing_now"` to `/1/submit-listens` |
+| Last.fm | `true` | `track.updateNowPlaying` |
+| Koito | `false` | Same LB payload (enable after confirming deduplication) |
+
+Now-playing failures are logged with `[NOW-FAIL]` and not retried.
 
 ## Retry behavior
 
