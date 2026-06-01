@@ -6,6 +6,16 @@ port = 4567
 # requests (safe only if the port is not reachable from the internet).
 webhook_token = "your-webhook-token"
 
+[plex]
+# Embed this token in your Plex webhook URL:
+#   http://scroblin:4567/webhooks/plex/your-plex-secret
+# The token segment is required even with no auth — use any value (e.g., "open").
+# webhook_token = "your-plex-secret"
+
+[jellyfin]
+# In Jellyfin's webhook plugin, add header: X-Scroblin-Token: your-jellyfin-secret
+# webhook_token = "your-jellyfin-secret"
+
 [koito]
 base_url = "http://koito.yourdomain.com"
 api_key  = "your-koito-api-key"
