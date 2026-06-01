@@ -59,7 +59,7 @@ pub async fn fan_out_now_playing(cfg: Arc<Config>, client: reqwest::Client, even
         tokio::spawn(async move {
             match listenbrainz::submit_now_playing(&cfg1.listenbrainz, &client1, &event1).await {
                 Ok(()) => println!("[NOW] {} → ListenBrainz | {} - {}", event1.source, event1.artist, event1.track),
-                Err(e) => eprintln!("[FAIL] {} → ListenBrainz now-playing | {} - {} | {}", event1.source, event1.artist, event1.track, e),
+                Err(e) => eprintln!("[NOW-FAIL] {} → ListenBrainz now-playing | {} - {} | {}", event1.source, event1.artist, event1.track, e),
             }
         });
     }
@@ -69,7 +69,7 @@ pub async fn fan_out_now_playing(cfg: Arc<Config>, client: reqwest::Client, even
         tokio::spawn(async move {
             match lastfm::update_now_playing(&cfg2.lastfm, &client2, &event2).await {
                 Ok(()) => println!("[NOW] {} → Last.fm | {} - {}", event2.source, event2.artist, event2.track),
-                Err(e) => eprintln!("[FAIL] {} → Last.fm now-playing | {} - {} | {}", event2.source, event2.artist, event2.track, e),
+                Err(e) => eprintln!("[NOW-FAIL] {} → Last.fm now-playing | {} - {} | {}", event2.source, event2.artist, event2.track, e),
             }
         });
     }
@@ -79,7 +79,7 @@ pub async fn fan_out_now_playing(cfg: Arc<Config>, client: reqwest::Client, even
         tokio::spawn(async move {
             match koito::submit_now_playing(&cfg3.koito, &client3, &event3).await {
                 Ok(()) => println!("[NOW] {} → Koito | {} - {}", event3.source, event3.artist, event3.track),
-                Err(e) => eprintln!("[FAIL] {} → Koito now-playing | {} - {} | {}", event3.source, event3.artist, event3.track, e),
+                Err(e) => eprintln!("[NOW-FAIL] {} → Koito now-playing | {} - {} | {}", event3.source, event3.artist, event3.track, e),
             }
         });
     }
@@ -141,6 +141,39 @@ mod tests {
             source: Source::Navidrome,
         };
         // All targets disabled — should complete immediately without panicking
+        fan_out_now_playing(cfg, client, event).await;
+    }
+
+    #[tokio::test]
+    async fn fan_out_now_playing_spawns_when_enabled() {
+        let cfg = Arc::new(Config {
+            server: ServerConfig { port: 4567, webhook_token: None },
+            koito: KoitoConfig {
+                base_url: "http://localhost:1".to_string(),
+                api_key: "k".to_string(),
+                forward_now_playing: Some(false),
+            },
+            listenbrainz: ListenBrainzConfig {
+                user_token: "l".to_string(),
+                forward_now_playing: Some(true),  // enabled
+            },
+            lastfm: LastFmConfig {
+                api_key: "a".to_string(),
+                shared_secret: "s".to_string(),
+                session_key: "k".to_string(),
+                forward_now_playing: Some(false),
+            },
+        });
+        let client = reqwest::Client::new();
+        let event = NowPlayingEvent {
+            artist: "Test".to_string(),
+            album: None,
+            track: "Track".to_string(),
+            duration_secs: None,
+            source: Source::Navidrome,
+        };
+        // Should complete without panicking even though the spawned LB request will fail
+        // (localhost:1 is unreachable — the spawn is fire-and-forget so this still returns)
         fan_out_now_playing(cfg, client, event).await;
     }
 }
