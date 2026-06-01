@@ -22,7 +22,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/1/validate-token", get(validate_token_handler))
         .route("/submit-listens", post(navidrome_handler))
         .route("/1/submit-listens", post(navidrome_handler))
-        .route("/webhooks/plex", post(plex_handler))
+        .route("/webhooks/plex/{token}", post(plex_handler))
         .route("/webhooks/jellyfin", post(jellyfin_handler))
         .fallback(unmatched_handler)
         .with_state(state)
@@ -115,7 +115,16 @@ async fn navidrome_handler(
     }
 }
 
-async fn plex_handler(State(state): State<AppState>, mut multipart: Multipart) -> StatusCode {
+async fn plex_handler(
+    State(state): State<AppState>,
+    axum::extract::Path(url_token): axum::extract::Path<String>,
+    mut multipart: Multipart,
+) -> StatusCode {
+    if !token_matches(state.cfg.plex.webhook_token.as_deref(), &url_token) {
+        eprintln!("[WARN] Plex auth failed");
+        return StatusCode::UNAUTHORIZED;
+    }
+
     let mut payload_json: Option<String> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
@@ -178,6 +187,70 @@ async fn jellyfin_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::Body;
+    use tower::ServiceExt;
+
+    fn test_app_plex_token(plex_token: Option<&str>) -> Router {
+        let cfg = Arc::new(Config {
+            server: crate::config::ServerConfig { port: 4567, webhook_token: None },
+            plex: crate::config::PlexConfig {
+                webhook_token: plex_token.map(|s| s.to_string()),
+            },
+            jellyfin: crate::config::JellyfinConfig { webhook_token: None },
+            koito: crate::config::KoitoConfig {
+                base_url: "http://k".into(),
+                api_key: "k".into(),
+                forward_now_playing: None,
+            },
+            listenbrainz: crate::config::ListenBrainzConfig {
+                user_token: "t".into(),
+                forward_now_playing: None,
+            },
+            lastfm: crate::config::LastFmConfig {
+                api_key: "a".into(),
+                shared_secret: "s".into(),
+                session_key: "k".into(),
+                forward_now_playing: None,
+            },
+        });
+        build_router(AppState { cfg, client: reqwest::Client::new() })
+    }
+
+    #[tokio::test]
+    async fn plex_handler_rejects_wrong_url_token() {
+        let app = test_app_plex_token(Some("secret"));
+        let response = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/webhooks/plex/wrong")
+                    .header("content-type", "multipart/form-data; boundary=----boundary")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn plex_handler_allows_when_no_token_configured() {
+        let app = test_app_plex_token(None);
+        // With no token configured, auth passes regardless of URL segment.
+        // Multipart will be malformed so we get 400, but NOT 401.
+        let response = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/webhooks/plex/anything")
+                    .header("content-type", "multipart/form-data; boundary=----boundary")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(response.status(), StatusCode::UNAUTHORIZED);
+    }
 
     #[test]
     fn token_matches_allows_when_no_expected_token() {
