@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Multipart, Request, State},
+    extract::{Multipart, Path, Request, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
@@ -23,6 +23,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/submit-listens", post(navidrome_handler))
         .route("/1/submit-listens", post(navidrome_handler))
         .route("/webhooks/plex/{token}", post(plex_handler))
+        .route("/webhooks/plex", post(plex_missing_token_handler))
         .route("/webhooks/jellyfin", post(jellyfin_handler))
         .fallback(unmatched_handler)
         .with_state(state)
@@ -115,9 +116,14 @@ async fn navidrome_handler(
     }
 }
 
+async fn plex_missing_token_handler() -> StatusCode {
+    eprintln!("[WARN] Plex webhook received at /webhooks/plex — update URL to /webhooks/plex/{{token}}");
+    StatusCode::NOT_FOUND
+}
+
 async fn plex_handler(
     State(state): State<AppState>,
-    axum::extract::Path(url_token): axum::extract::Path<String>,
+    Path(url_token): Path<String>,
     mut multipart: Multipart,
 ) -> StatusCode {
     if !token_matches(state.cfg.plex.webhook_token.as_deref(), &url_token) {
@@ -245,6 +251,24 @@ mod tests {
                     .uri("/webhooks/plex/anything")
                     .header("content-type", "multipart/form-data; boundary=----boundary")
                     .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn plex_handler_accepts_correct_url_token() {
+        let app = test_app_plex_token(Some("secret"));
+        // Correct token — auth passes. Multipart is malformed → 400, but NOT 401.
+        let response = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/webhooks/plex/secret")
+                    .header("content-type", "multipart/form-data; boundary=----boundary")
+                    .body(axum::body::Body::empty())
                     .unwrap(),
             )
             .await
