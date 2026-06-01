@@ -83,7 +83,10 @@ async fn navidrome_handler(
     }
     if body.listen_type.as_deref() == Some("playing_now") {
         match sources::navidrome::parse_now_playing(&body) {
-            Ok(event) => { tokio::spawn(targets::fan_out_now_playing(state.cfg, state.client, event)); }
+            Ok(event) => {
+                println!("[REQ] playing_now | {} - {}", event.artist, event.track);
+                tokio::spawn(targets::fan_out_now_playing(state.cfg, state.client, event));
+            }
             Err(e) => eprintln!("[WARN] Navidrome now-playing parse error: {}", e),
         }
         return lb_ok().into_response();
