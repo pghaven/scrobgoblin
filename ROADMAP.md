@@ -32,16 +32,16 @@ Low effort, closes a real gap since Scroblin is externally exposed via Traefik.
 
 ---
 
-## 2 — Per-target "now playing" forwarding
+## ✅ Done — Per-target "now playing" forwarding
 
-**Status:** Not started. Implementation plan at `docs/superpowers/plans/2026-05-31-now-playing.md`.
+**Status:** Implemented 2026-05-31.
 
-Navidrome sends `listen_type: "playing_now"` to `/1/submit-listens` when a track starts. Scroblin currently drops these silently. Forwarding them enables:
-- **ListenBrainz:** "now playing" display on user profile
-- **Last.fm:** "now playing" widget via `track.updateNowPlaying`
-- **Koito:** optional, off by default until deduplication behaviour is confirmed
+`playing_now` events from Navidrome are now forwarded to ListenBrainz and Last.fm by default, and optionally to Koito. Per-target `forward_now_playing` flags in `config.toml` control which targets receive these events:
+- **ListenBrainz:** default `true` — forwards as `listen_type: "playing_now"` to `/1/submit-listens`
+- **Last.fm:** default `true` — calls `track.updateNowPlaying`
+- **Koito:** default `false` — enable once Koito deduplication is confirmed
 
-Per-target `forward_now_playing` config flags control which targets receive these events. Defaults: ListenBrainz `true`, Last.fm `true`, Koito `false`.
+If a flag is omitted from config, defaults apply. Failures are logged with `[NOW-FAIL]` prefix and not retried.
 
 ---
 
