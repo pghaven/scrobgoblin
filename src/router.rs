@@ -69,6 +69,13 @@ fn authorized(headers: &HeaderMap, expected: &Option<String>) -> bool {
     provided == expected_token.as_str()
 }
 
+fn token_matches(expected: Option<&str>, provided: &str) -> bool {
+    match expected {
+        None => true,
+        Some(t) => t == provided,
+    }
+}
+
 fn lb_ok() -> impl IntoResponse {
     (StatusCode::OK, Json(serde_json::json!({"status": "ok"})))
 }
@@ -165,5 +172,27 @@ async fn jellyfin_handler(
             eprintln!("[WARN] Jellyfin parse error: {}", e);
             StatusCode::BAD_REQUEST
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn token_matches_allows_when_no_expected_token() {
+        assert!(token_matches(None, "anything"));
+        assert!(token_matches(None, ""));
+    }
+
+    #[test]
+    fn token_matches_allows_when_tokens_match() {
+        assert!(token_matches(Some("secret"), "secret"));
+    }
+
+    #[test]
+    fn token_matches_rejects_when_tokens_differ() {
+        assert!(!token_matches(Some("secret"), "wrong"));
+        assert!(!token_matches(Some("secret"), ""));
     }
 }
