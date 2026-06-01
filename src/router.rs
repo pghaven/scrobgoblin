@@ -30,7 +30,14 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 async fn unmatched_handler(req: Request) -> StatusCode {
-    eprintln!("[404] {} {}", req.method(), req.uri().path());
+    let path = req.uri().path();
+    // Scrub the token segment from Plex webhook URLs to avoid logging credentials.
+    let safe_path = if path.starts_with("/webhooks/plex/") {
+        "/webhooks/plex/<token>"
+    } else {
+        path
+    };
+    eprintln!("[404] {} {}", req.method(), safe_path);
     StatusCode::NOT_FOUND
 }
 
@@ -72,7 +79,7 @@ fn authorized(headers: &HeaderMap, expected: &Option<String>) -> bool {
 
 fn token_matches(expected: Option<&str>, provided: &str) -> bool {
     match expected {
-        None => true,
+        None | Some("") => true, // not configured or misconfigured empty string — open
         Some(t) => t == provided,
     }
 }
@@ -381,5 +388,12 @@ mod tests {
     fn token_matches_rejects_when_tokens_differ() {
         assert!(!token_matches(Some("secret"), "wrong"));
         assert!(!token_matches(Some("secret"), ""));
+    }
+
+    #[test]
+    fn token_matches_allows_when_empty_string_configured() {
+        // Some("") is a misconfigured token — treated as open (same as None).
+        assert!(token_matches(Some(""), ""));
+        assert!(token_matches(Some(""), "anything"));
     }
 }
