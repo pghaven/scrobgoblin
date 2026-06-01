@@ -212,6 +212,7 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let mock = server
             .mock("POST", "/2.0/")
+            .match_body(mockito::Matcher::Regex("method=track.updateNowPlaying".to_string()))
             .with_status(200)
             .with_body(r#"{"nowplaying":{"artist":{"#)
             .create_async()
