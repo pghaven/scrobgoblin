@@ -89,6 +89,18 @@ Previously `playing_now` events from Navidrome were silently dropped. Now they a
 
 ---
 
+## Session 4 — ListenBrainz Now-Playing Payload Fix (2026-05-31)
+
+### Bug: `additional_info` at wrong level in playing_now payload
+
+**Symptom:** `[NOW-FAIL] Navidrome → ListenBrainz now-playing` with HTTP 400: `"JSON document may only contain track_metadata as top level key when submitting playing_now."`
+
+**Root cause:** `build_now_playing_payload()` placed `additional_info` as a sibling of `track_metadata` in the listen object. The ListenBrainz API only permits `track_metadata` as a top-level key in a `playing_now` listen — `additional_info` must be nested inside `track_metadata`.
+
+**Fix:** `src/targets/listenbrainz.rs` — moved `additional_info` inside `track_metadata` instead of on the listen object. Test assertion updated to match new path `payload[0].track_metadata.additional_info.duration`.
+
+---
+
 ## Deployment Notes
 
 - Container: `scroblin`, port 4567, `restart: unless-stopped`
