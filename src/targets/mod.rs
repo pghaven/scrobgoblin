@@ -105,12 +105,14 @@ async fn retry_log(target: &str, event: &PlayEvent, attempt: u32, e: &anyhow::Er
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{KoitoConfig, LastFmConfig, ListenBrainzConfig, ServerConfig};
+    use crate::config::{JellyfinConfig, KoitoConfig, LastFmConfig, ListenBrainzConfig, PlexConfig, ServerConfig};
     use crate::event::{NowPlayingEvent, Source};
 
     fn minimal_cfg() -> Arc<Config> {
         Arc::new(Config {
             server: ServerConfig { port: 4567, webhook_token: None },
+            plex: PlexConfig { webhook_token: None },
+            jellyfin: JellyfinConfig { webhook_token: None },
             koito: KoitoConfig {
                 base_url: "http://localhost:1".to_string(),
                 api_key: "k".to_string(),
@@ -148,6 +150,8 @@ mod tests {
     async fn fan_out_now_playing_spawns_when_enabled() {
         let cfg = Arc::new(Config {
             server: ServerConfig { port: 4567, webhook_token: None },
+            plex: PlexConfig { webhook_token: None },
+            jellyfin: JellyfinConfig { webhook_token: None },
             koito: KoitoConfig {
                 base_url: "http://localhost:1".to_string(),
                 api_key: "k".to_string(),
