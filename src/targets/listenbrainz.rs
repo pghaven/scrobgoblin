@@ -29,13 +29,12 @@ pub fn build_now_playing_payload(event: &NowPlayingEvent) -> Value {
     if let Some(album) = &event.album {
         track_metadata["release_name"] = json!(album);
     }
-    let mut listen = json!({ "track_metadata": track_metadata });
     if let Some(duration) = event.duration_secs {
-        listen["additional_info"] = json!({ "duration": duration });
+        track_metadata["additional_info"] = json!({ "duration": duration });
     }
     json!({
         "listen_type": "playing_now",
-        "payload": [listen]
+        "payload": [{ "track_metadata": track_metadata }]
     })
 }
 
@@ -185,7 +184,7 @@ mod tests {
         assert!(payload["payload"][0]["listened_at"].is_null());
         assert_eq!(payload["payload"][0]["track_metadata"]["artist_name"], "Massive Attack");
         assert_eq!(payload["payload"][0]["track_metadata"]["track_name"], "Teardrop");
-        assert_eq!(payload["payload"][0]["additional_info"]["duration"], 330u64);
+        assert_eq!(payload["payload"][0]["track_metadata"]["additional_info"]["duration"], 330u64);
     }
 
     #[tokio::test]
