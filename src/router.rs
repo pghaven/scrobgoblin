@@ -174,8 +174,18 @@ async fn plex_handler(
 
 async fn jellyfin_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<sources::jellyfin::JellyfinPayload>,
 ) -> StatusCode {
+    let provided = headers
+        .get("x-scroblin-token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !token_matches(state.cfg.jellyfin.webhook_token.as_deref(), provided) {
+        eprintln!("[WARN] Jellyfin auth failed");
+        return StatusCode::UNAUTHORIZED;
+    }
+
     match sources::jellyfin::parse(&body) {
         Ok(event) if threshold::qualifies(&event) => {
             tokio::spawn(targets::fan_out(state.cfg, state.client, event));
@@ -269,6 +279,86 @@ mod tests {
                     .uri("/webhooks/plex/secret")
                     .header("content-type", "multipart/form-data; boundary=----boundary")
                     .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    fn test_app_jellyfin_token(jellyfin_token: Option<&str>) -> Router {
+        let cfg = Arc::new(Config {
+            server: crate::config::ServerConfig { port: 4567, webhook_token: None },
+            plex: crate::config::PlexConfig { webhook_token: None },
+            jellyfin: crate::config::JellyfinConfig {
+                webhook_token: jellyfin_token.map(|s| s.to_string()),
+            },
+            koito: crate::config::KoitoConfig {
+                base_url: "http://k".into(),
+                api_key: "k".into(),
+                forward_now_playing: None,
+            },
+            listenbrainz: crate::config::ListenBrainzConfig {
+                user_token: "t".into(),
+                forward_now_playing: None,
+            },
+            lastfm: crate::config::LastFmConfig {
+                api_key: "a".into(),
+                shared_secret: "s".into(),
+                session_key: "k".into(),
+                forward_now_playing: None,
+            },
+        });
+        build_router(AppState { cfg, client: reqwest::Client::new() })
+    }
+
+    #[tokio::test]
+    async fn jellyfin_handler_rejects_wrong_header_token() {
+        let app = test_app_jellyfin_token(Some("secret"));
+        let response = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/webhooks/jellyfin")
+                    .header("content-type", "application/json")
+                    .header("x-scroblin-token", "wrong")
+                    .body(Body::from(r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn jellyfin_handler_rejects_missing_header_when_token_configured() {
+        let app = test_app_jellyfin_token(Some("secret"));
+        let response = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/webhooks/jellyfin")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn jellyfin_handler_allows_when_no_token_configured() {
+        let app = test_app_jellyfin_token(None);
+        // No token configured — auth passes regardless of header presence.
+        // Valid minimal payload so deserialization succeeds and we get 200.
+        let response = app
+            .oneshot(
+                http::Request::builder()
+                    .method("POST")
+                    .uri("/webhooks/jellyfin")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#))
                     .unwrap(),
             )
             .await
