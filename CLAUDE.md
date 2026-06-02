@@ -38,7 +38,7 @@ Webhook POST → source parser → PlayEvent → threshold::qualifies → fan_ou
 
 **Fan-out** (`src/targets/mod.rs`): `fan_out` spawns 3 tasks concurrently with retry (1s → 4s backoff, joined). `fan_out_now_playing` is fire-and-forget (tasks spawned, not joined, no retry) — `[NOW-FAIL]` on error.
 
-**Router** (`src/router.rs`): `AppState` holds `Arc<Config>` and a shared `reqwest::Client`. Fan-out is detached via `tokio::spawn` so the webhook handler returns 200 immediately. Navidrome `playing_now` events are parsed via `sources::navidrome::parse_now_playing` and dispatched to `fan_out_now_playing`; always returns `lb_ok()` regardless of parse outcome.
+**Router** (`src/router.rs`): `AppState` holds `Arc<Config>` and a shared `reqwest::Client`. Fan-out is detached via `tokio::spawn` so the webhook handler returns 200 immediately. Navidrome `playing_now` events are parsed via `sources::navidrome::parse_now_playing` and dispatched to `fan_out_now_playing`; always returns `lb_ok()` regardless of parse outcome. `token_matches(expected: Option<&str>, provided: &str) -> bool` handles per-source auth for Plex (URL path param) and Jellyfin (header value); `None` and `Some("")` both treat as open.
 
 ## Key Patterns
 
@@ -48,6 +48,9 @@ Webhook POST → source parser → PlayEvent → threshold::qualifies → fan_ou
 - **Koito submit endpoint**: `{base_url}/apis/listenbrainz/1/submit-listens` — NOT `/1/submit-listens`. Koito's LB-compatible API lives under `/apis/listenbrainz/1/`.
 - Duration units: Plex sends milliseconds (÷1000), Jellyfin sends `RunTimeTicks` (÷10,000,000), Navidrome sends seconds or `duration_ms`
 - Non-qualifying source events (wrong type) return `Err` with string containing "not a scrobble event" or "not a PlaybackStopped event" — router pattern-matches these to return 200
+- Plex webhook auth: URL-embedded token, route `/webhooks/plex/{token}`. Legacy `/webhooks/plex` returns 404 with migration hint. Token scrubbed from 404 logs.
+- Jellyfin webhook auth: `X-Scroblin-Token` header. Fixed header name — not configurable.
+- LB `playing_now` payload: `additional_info` must be nested inside `track_metadata`, not at the listen level
 - `NowPlayingEvent` vs `PlayEvent`: same fields minus `played_at`; `build_now_playing_payload` (listenbrainz.rs) is reused by Koito since they share the LB wire format
 
 ## Navidrome Gotchas

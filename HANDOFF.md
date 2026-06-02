@@ -101,6 +101,45 @@ Previously `playing_now` events from Navidrome were silently dropped. Now they a
 
 ---
 
+## Session 5 — Plex/Jellyfin Auth + LB Payload Fix (2026-06-02)
+
+### Bug: ListenBrainz `playing_now` payload rejected (400)
+
+`additional_info` was placed at the listen level alongside `track_metadata`. The LB API requires `additional_info` to be nested inside `track_metadata` for `playing_now` events. Fixed in `src/targets/listenbrainz.rs`.
+
+### Feature: Plex and Jellyfin webhook authentication
+
+Implemented optional per-source token auth for the Plex and Jellyfin webhook handlers. Navidrome was already authenticated via `server.webhook_token`; this extends that protection to the other two sources.
+
+**Plex:** URL-embedded token. Route changed from `/webhooks/plex` to `/webhooks/plex/{token}`. A legacy `/webhooks/plex` route returns 404 with a migration hint log. Configure in `config.toml`:
+```toml
+[plex]
+webhook_token = "your-secret"
+```
+Webhook URL in Plex: `http://scroblin:4567/webhooks/plex/your-secret`
+
+**Jellyfin:** Fixed header `X-Scroblin-Token`. Configure in `config.toml`:
+```toml
+[jellyfin]
+webhook_token = "your-secret"
+```
+In Jellyfin's webhook plugin, add header: `X-Scroblin-Token: your-secret`
+
+**Both** default to open (all requests allowed) when the section is absent — safe default for internal deployments.
+
+### Key implementation details
+
+- `PlexConfig { webhook_token: Option<String> }` and `JellyfinConfig { webhook_token: Option<String> }` added to `src/config.rs` with `#[serde(default)]` — existing configs without these sections parse correctly
+- `token_matches(expected: Option<&str>, provided: &str) -> bool` helper in `src/router.rs` — `None` and `Some("")` both treat as open; used by both new handlers
+- Token scrubbed from `unmatched_handler` 404 logs for `/webhooks/plex/` paths to avoid credential exposure
+- 48 tests (was 36 before this session)
+
+### Status
+
+Code is deployed. **Production testing not yet complete** — user is testing Plex and Jellyfin webhook auth against the live server before confirming. See next steps below.
+
+---
+
 ## Deployment Notes
 
 - Container: `scroblin`, port 4567, `restart: unless-stopped`
@@ -111,7 +150,7 @@ Previously `playing_now` events from Navidrome were silently dropped. Now they a
 
 ## Next Steps
 
-See ROADMAP.md. Priority order:
-1. Plex and Jellyfin webhook authentication (low effort, real security gap — Scroblin is externally exposed via Traefik)
-2. Koito now-playing: test Koito deduplication, then enable `forward_now_playing = true` in config if confirmed
-3. Structured logging (`tracing` crate) — nice-to-have for log aggregation
+1. **Complete Plex/Jellyfin auth testing** — configure tokens in production `config.toml`, set webhook URLs/headers in each client, verify scrobbles flow through and 401s appear on mismatched tokens (see Session 5 for exact config steps)
+2. **Koito now-playing** — test Koito deduplication behaviour, then enable `forward_now_playing = true` in `config.toml` under `[koito]` if confirmed safe
+3. **Test Plex scrobbles** (#4) and **Test Jellyfin scrobbles** (#5) — neither source has been tested in production yet
+4. **Structured logging** (`tracing` crate) — nice-to-have for log aggregation

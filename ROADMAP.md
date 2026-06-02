@@ -20,15 +20,15 @@ Scrobbling from both the Navidrome web UI and mobile Subsonic clients is confirm
 
 ---
 
-## 1 — Plex and Jellyfin webhook authentication
+## ✅ Done — Plex and Jellyfin webhook authentication
 
-**Status:** Not started.
+**Status:** Implemented 2026-06-02. Pending production testing.
 
-The Plex and Jellyfin webhook handlers are currently unauthenticated. Both platforms support webhook secrets:
-- **Plex:** sends `X-Plex-Token` header — validate against a token in config
-- **Jellyfin:** webhook plugin supports a shared secret sent as a custom header — validate against a secret in config
+Plex and Jellyfin webhook handlers now support optional per-source token authentication:
+- **Plex:** URL-embedded token — webhook URL becomes `http://scroblin:4567/webhooks/plex/{token}`. Legacy `/webhooks/plex` returns 404 with a helpful migration log.
+- **Jellyfin:** Fixed header `X-Scroblin-Token` — configure in Jellyfin's webhook plugin as a custom header.
 
-Low effort, closes a real gap since Scroblin is externally exposed via Traefik.
+Both default to open (all requests allowed) when the section is absent from `config.toml`. If set, mismatched requests receive HTTP 401. Token scrubbed from 404 logs to avoid credential exposure.
 
 ---
 
