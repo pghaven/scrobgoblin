@@ -17,7 +17,20 @@ pub struct PlexMetadata {
     #[serde(rename = "parentTitle")]
     pub parent_title: Option<String>,
     pub title: String,
+    #[serde(rename = "titleSort")]
+    pub title_sort: Option<String>,
     pub duration: Option<u64>,
+}
+
+impl PlexMetadata {
+    // Plex occasionally stores the display title blank with the real name in titleSort.
+    pub fn effective_title(&self) -> &str {
+        if self.title.is_empty() {
+            self.title_sort.as_deref().unwrap_or("")
+        } else {
+            &self.title
+        }
+    }
 }
 
 pub fn parse(payload: &PlexPayload) -> Result<PlayEvent> {
@@ -32,7 +45,7 @@ pub fn parse(payload: &PlexPayload) -> Result<PlayEvent> {
     Ok(PlayEvent {
         artist: meta.grandparent_title.clone().unwrap_or_default(),
         album: meta.parent_title.clone(),
-        track: meta.title.clone(),
+        track: meta.effective_title().to_string(),
         duration_secs: meta.duration.map(|ms| ms / 1000),
         played_at: Utc::now(),
         source: Source::Plex,
@@ -51,7 +64,7 @@ pub fn parse_now_playing(payload: &PlexPayload) -> Result<NowPlayingEvent> {
     Ok(NowPlayingEvent {
         artist: meta.grandparent_title.clone().unwrap_or_default(),
         album: meta.parent_title.clone(),
-        track: meta.title.clone(),
+        track: meta.effective_title().to_string(),
         duration_secs: meta.duration.map(|ms| ms / 1000),
         source: Source::Plex,
     })
@@ -125,6 +138,21 @@ mod tests {
         assert_eq!(event.track, "Glory Box");
         assert_eq!(event.album, None);
         assert_eq!(event.duration_secs, None);
+    }
+
+    #[test]
+    fn uses_title_sort_when_title_is_blank() {
+        // Plex sometimes stores the real track name only in titleSort.
+        let payload: PlexPayload = serde_json::from_str(r#"{
+            "event": "media.play",
+            "Metadata": {
+                "grandparentTitle": "a‐ha",
+                "title": "",
+                "titleSort": "Take On Me"
+            }
+        }"#).unwrap();
+        let event = parse_now_playing(&payload).unwrap();
+        assert_eq!(event.track, "Take On Me");
     }
 
     #[test]
