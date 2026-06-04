@@ -1256,6 +1256,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "http",
  "md5",
  "mockito",
  "reqwest",
@@ -1263,6 +1264,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "toml",
+ "tower",
 ]
 
 [[package]]
