@@ -165,17 +165,28 @@ async fn plex_handler(
         }
     };
 
-    match sources::plex::parse(&plex_payload) {
-        Ok(event) if threshold::qualifies(&event) => {
-            tokio::spawn(targets::fan_out(state.cfg, state.client, event));
+    match plex_payload.event.as_str() {
+        "media.play" | "media.resume" => {
+            match sources::plex::parse_now_playing(&plex_payload) {
+                Ok(event) => {
+                    println!("[REQ] playing_now (plex) | {} - {}", event.artist, event.track);
+                    tokio::spawn(targets::fan_out_now_playing(state.cfg, state.client, event));
+                }
+                Err(e) => eprintln!("[WARN] Plex now-playing parse error: {}", e),
+            }
             StatusCode::OK
         }
-        Ok(_) => StatusCode::OK,
-        Err(e) if e.to_string().contains("not a scrobble event") => StatusCode::OK,
-        Err(e) => {
-            eprintln!("[WARN] Plex parse error: {}", e);
-            StatusCode::BAD_REQUEST
+        "media.scrobble" => {
+            match sources::plex::parse(&plex_payload) {
+                Ok(event) if threshold::qualifies(&event) => {
+                    tokio::spawn(targets::fan_out(state.cfg, state.client, event));
+                }
+                Ok(_) => {}
+                Err(e) => eprintln!("[WARN] Plex scrobble parse error: {}", e),
+            }
+            StatusCode::OK
         }
+        _ => StatusCode::OK,
     }
 }
 
@@ -395,5 +406,69 @@ mod tests {
         // Some("") is a misconfigured token — treated as open (same as None).
         assert!(token_matches(Some(""), ""));
         assert!(token_matches(Some(""), "anything"));
+    }
+
+    fn test_app_plex_nowplaying() -> Router {
+        // All forward_now_playing flags set to false so fan_out_now_playing
+        // does not make real HTTP calls during tests.
+        let cfg = Arc::new(Config {
+            server: crate::config::ServerConfig { port: 4567, webhook_token: None },
+            plex: crate::config::PlexConfig { webhook_token: None },
+            jellyfin: crate::config::JellyfinConfig { webhook_token: None },
+            koito: crate::config::KoitoConfig {
+                base_url: "http://k".into(),
+                api_key: "k".into(),
+                forward_now_playing: Some(false),
+            },
+            listenbrainz: crate::config::ListenBrainzConfig {
+                user_token: "t".into(),
+                forward_now_playing: Some(false),
+            },
+            lastfm: crate::config::LastFmConfig {
+                api_key: "a".into(),
+                shared_secret: "s".into(),
+                session_key: "k".into(),
+                forward_now_playing: Some(false),
+            },
+        });
+        build_router(AppState { cfg, client: reqwest::Client::new() })
+    }
+
+    fn plex_nowplaying_request(event_type: &str) -> http::Request<Body> {
+        let json = format!(
+            r#"{{"event":"{}","Metadata":{{"grandparentTitle":"Radiohead","parentTitle":"OK Computer","title":"Karma Police","duration":264000}}}}"#,
+            event_type
+        );
+        let body = format!(
+            "--testboundary\r\nContent-Disposition: form-data; name=\"payload\"\r\n\r\n{}\r\n--testboundary--",
+            json
+        );
+        http::Request::builder()
+            .method("POST")
+            .uri("/webhooks/plex/open")
+            .header("content-type", "multipart/form-data; boundary=testboundary")
+            .body(Body::from(body))
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn plex_handler_returns_200_for_media_play() {
+        let app = test_app_plex_nowplaying();
+        let response = app.oneshot(plex_nowplaying_request("media.play")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn plex_handler_returns_200_for_media_resume() {
+        let app = test_app_plex_nowplaying();
+        let response = app.oneshot(plex_nowplaying_request("media.resume")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn plex_handler_returns_200_for_unrecognised_event() {
+        let app = test_app_plex_nowplaying();
+        let response = app.oneshot(plex_nowplaying_request("media.stop")).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
