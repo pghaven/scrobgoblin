@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Config
+
+`config.toml` lives in `conf/config.toml`. A symlink at the repo root (`config.toml → conf/config.toml`) keeps `cargo run` working from the project root.
+
+The Docker compose mounts the `conf/` **directory** (not the file) and runs the binary from it:
+
+```yaml
+volumes:
+  - ./conf:/conf:ro
+command: ["/bin/sh", "-c", "cd /conf && exec /app/scroblin"]
+```
+
+**Why a directory mount?** Colima's sshfs layer can't reliably bind-mount individual files — Docker fails with `mkdir /Users/paul: file exists` even when the file exists. Mounting the containing directory avoids this. The app reads `config.toml` from its CWD, so changing into `/conf` before exec is the only other required change.
+
 ## Git Remote
 
 This project is hosted on Forgejo at forgejo.geary.quest. Use standard `git push` — never `gh` CLI. The `fj` CLI may be used for issues/PRs if needed.
@@ -15,7 +29,7 @@ cargo run               # Run locally (requires config.toml in CWD)
 cargo test              # Run all tests
 cargo test <name>       # Run a single test by name
 cargo check             # Fast type-check without building
-docker compose up -d    # Run via Docker (requires config.toml mounted)
+docker compose up -d    # Run via Docker (mounts conf/ directory; see Config below)
 docker build -t scroblin:latest .
 ```
 

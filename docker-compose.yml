@@ -7,7 +7,8 @@ services:
     ports:
       - "4567:4567"
     volumes:
-      - ./config.toml:/app/config.toml:ro
+      - ./conf:/conf:ro
+    command: ["/bin/sh", "-c", "cd /conf && exec /app/scroblin"]
     extra_hosts:
       - "koito.geary.quest:host-gateway"
     networks:
