@@ -204,17 +204,29 @@ async fn jellyfin_handler(
         return StatusCode::UNAUTHORIZED;
     }
 
-    match sources::jellyfin::parse(&body) {
-        Ok(event) if threshold::qualifies(&event) => {
-            tokio::spawn(targets::fan_out(state.cfg, state.client, event));
+    match body.notification_type.as_str() {
+        "PlaybackStart" => {
+            match sources::jellyfin::parse_now_playing(&body) {
+                Ok(event) => {
+                    println!("[REQ] playing_now (jellyfin) | {} - {}", event.artist, event.track);
+                    tokio::spawn(targets::fan_out_now_playing(state.cfg, state.client, event));
+                }
+                Err(e) => eprintln!("[WARN] Jellyfin now-playing parse error: {}", e),
+            }
             StatusCode::OK
         }
-        Ok(_) => StatusCode::OK,
-        Err(e) if e.to_string().contains("not a PlaybackStopped event") => StatusCode::OK,
-        Err(e) => {
-            eprintln!("[WARN] Jellyfin parse error: {}", e);
-            StatusCode::BAD_REQUEST
+        "PlaybackStop" => {
+            match sources::jellyfin::parse(&body) {
+                Ok(event) if threshold::qualifies(&event) => {
+                    tokio::spawn(targets::fan_out(state.cfg, state.client, event));
+                }
+                Ok(_) => {}
+                Err(e) if e.to_string().contains("position 0") => {}
+                Err(e) => eprintln!("[WARN] Jellyfin scrobble parse error: {}", e),
+            }
+            StatusCode::OK
         }
+        _ => StatusCode::OK,
     }
 }
 
