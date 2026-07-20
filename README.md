@@ -1,4 +1,4 @@
-# Scroblin
+# Scrobgoblin
 
 A small, efficient Rust service that receives play webhooks from Navidrome, Plex, and Jellyfin and fans them out to Koito, ListenBrainz, and Last.fm simultaneously.
 
@@ -6,9 +6,9 @@ A small, efficient Rust service that receives play webhooks from Navidrome, Plex
 
 | Source | Configuration |
 |--------|--------------|
-| Navidrome | Set `ND_LISTENBRAINZ_BASEURL=http://scroblin:4567` — Navidrome uses the ListenBrainz API paths (`/1/submit-listens`, `/1/validate-token`) |
-| Plex | Webhook URL: `http://scroblin:4567/webhooks/plex` |
-| Jellyfin | Webhook URL: `http://scroblin:4567/webhooks/jellyfin` |
+| Navidrome | Set `ND_LISTENBRAINZ_BASEURL=http://scrobgoblin:4567` — Navidrome uses the ListenBrainz API paths (`/1/submit-listens`, `/1/validate-token`) |
+| Plex | Webhook URL: `http://scrobgoblin:4567/webhooks/plex` |
+| Jellyfin | Webhook URL: `http://scrobgoblin:4567/webhooks/jellyfin` |
 
 | Target | Protocol |
 |--------|----------|
@@ -66,7 +66,7 @@ Navidrome requires a `{"status": "ok"}` JSON body in the response. An empty HTTP
 
 ## Now playing
 
-Scroblin forwards `playing_now` events to targets that support it. Controlled per-target via `forward_now_playing` in `config.toml`:
+Scrobgoblin forwards `playing_now` events to targets that support it. Controlled per-target via `forward_now_playing` in `config.toml`:
 
 | Target | Default | API method |
 |--------|---------|------------|
@@ -78,7 +78,7 @@ Now-playing failures are logged with `[NOW-FAIL]` and not retried.
 
 ## Retry behavior
 
-Each target is submitted independently. On failure, Scroblin retries up to 3 times with backoff (1s → 4s). After 3 failures the event is logged and discarded. No persistence across restarts.
+Each target is submitted independently. On failure, Scrobgoblin retries up to 3 times with backoff (1s → 4s). After 3 failures the event is logged and discarded. No persistence across restarts.
 
 ## Security note
 
@@ -95,5 +95,5 @@ The worst-case impact without auth is spam scrobbles — credentials are never e
 
 ```bash
 cargo build --release
-docker build -t scroblin:latest .
+docker build -t scrobgoblin:latest .
 ```

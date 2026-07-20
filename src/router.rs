@@ -57,7 +57,7 @@ async fn validate_token_handler(
         "code": 200,
         "message": "Token valid.",
         "valid": true,
-        "user_name": "scroblin"
+        "user_name": "scrobgoblin"
     }))).into_response()
 }
 

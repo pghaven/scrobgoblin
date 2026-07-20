@@ -12,5 +12,5 @@ RUN touch src/main.rs && cargo build --release
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /app/target/release/scroblin /app/scroblin
-CMD ["/app/scroblin"]
+COPY --from=builder /app/target/release/scrobgoblin /app/scrobgoblin
+CMD ["/app/scrobgoblin"]

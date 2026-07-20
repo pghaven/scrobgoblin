@@ -1,15 +1,15 @@
 services:
-  scroblin:
+  scrobgoblin:
     build: .
-    image: scroblin:latest
-    container_name: scroblin
+    image: scrobgoblin:latest
+    container_name: scrobgoblin
     restart: unless-stopped
     mem_limit: 128m
     ports:
       - "4567:4567"
     volumes:
       - ./conf:/conf:ro
-    command: ["/bin/sh", "-c", "cd /conf && exec /app/scroblin"]
+    command: ["/bin/sh", "-c", "cd /conf && exec /app/scrobgoblin"]
     extra_hosts:
       - "koito.geary.quest:host-gateway"
     networks:
@@ -22,16 +22,16 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=proxiable"
       # HTTP
-      - "traefik.http.routers.scroblin_http.rule=Host(`scroblin.geary.quest`)"
-      - "traefik.http.routers.scroblin_http.entrypoints=web"
-      - "traefik.http.routers.scroblin_http.middlewares=redirect-to-https@file"
-      - "traefik.http.services.scroblin.loadbalancer.server.port=4567"
+      - "traefik.http.routers.scrobgoblin_http.rule=Host(`scrobgoblin.geary.quest`)"
+      - "traefik.http.routers.scrobgoblin_http.entrypoints=web"
+      - "traefik.http.routers.scrobgoblin_http.middlewares=redirect-to-https@file"
+      - "traefik.http.services.scrobgoblin.loadbalancer.server.port=4567"
       # HTTPS
-      - "traefik.http.routers.scroblin_https.rule=Host(`scroblin.geary.quest`)"
-      - "traefik.http.routers.scroblin_https.entrypoints=websecure"
-      - "traefik.http.routers.scroblin_https.tls=true"
-      - "traefik.http.routers.scroblin_https.tls.certresolver=cloudflare"
-      - "traefik.http.services.scroblin.loadbalancer.server.port=4567"
+      - "traefik.http.routers.scrobgoblin_https.rule=Host(`scrobgoblin.geary.quest`)"
+      - "traefik.http.routers.scrobgoblin_https.entrypoints=websecure"
+      - "traefik.http.routers.scrobgoblin_https.tls=true"
+      - "traefik.http.routers.scrobgoblin_https.tls.certresolver=cloudflare"
+      - "traefik.http.services.scrobgoblin.loadbalancer.server.port=4567"
 
 networks:
   proxiable:

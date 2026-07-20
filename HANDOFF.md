@@ -1,8 +1,8 @@
-# Scroblin Handoff
+# Scrobgoblin Handoff
 
 ## Current Status (2026-05-31)
 
-Scroblin is deployed and working at `http://scroblin:4567` (internal) / `https://scroblin.geary.quest` (external via Traefik). Navidrome is configured to use it as its ListenBrainz endpoint. All three targets (Koito, ListenBrainz, Last.fm) are receiving scrobbles and now-playing notifications successfully. Memory footprint is ~8 MB, CPU is ~0% at idle.
+Scrobgoblin is deployed and working at `http://scrobgoblin:4567` (internal) / `https://scrobgoblin.geary.quest` (external via Traefik). Navidrome is configured to use it as its ListenBrainz endpoint. All three targets (Koito, ListenBrainz, Last.fm) are receiving scrobbles and now-playing notifications successfully. Memory footprint is ~8 MB, CPU is ~0% at idle.
 
 ---
 
@@ -44,7 +44,7 @@ The original `LbPayload` struct did not capture `listen_type`, so both event typ
 
 **Symptom:** The same song ("Dido - Sand in My Shoes") was scrobbled to all three targets continuously and indefinitely, even when nothing was playing. Navidrome logs showed `ListenBrainz Scrobble returned HTTP error error=EOF` and `Could not send scrobble. Will be retried` in a tight loop. The `listened_at` timestamp was identical on every submission — the same queued event being replayed.
 
-**Root cause:** The ListenBrainz API spec requires a `{"status": "ok"}` JSON response body on successful submission. Scroblin was returning `StatusCode::OK` (HTTP 200) with an empty body. Navidrome's ListenBrainz client reads the response body and, finding no content (EOF), treats the request as failed and re-queues the scrobble for retry.
+**Root cause:** The ListenBrainz API spec requires a `{"status": "ok"}` JSON response body on successful submission. Scrobgoblin was returning `StatusCode::OK` (HTTP 200) with an empty body. Navidrome's ListenBrainz client reads the response body and, finding no content (EOF), treats the request as failed and re-queues the scrobble for retry.
 
 **Fix:** Changed `navidrome_handler` return type from `StatusCode` to `impl IntoResponse`. Added a `lb_ok()` helper that returns `(StatusCode::OK, Json({"status": "ok"}))`. All success paths now return this.
 
@@ -116,7 +116,7 @@ Implemented optional per-source token auth for the Plex and Jellyfin webhook han
 [plex]
 webhook_token = "your-secret"
 ```
-Webhook URL in Plex: `http://scroblin:4567/webhooks/plex/your-secret`
+Webhook URL in Plex: `http://scrobgoblin:4567/webhooks/plex/your-secret`
 
 **Jellyfin:** Fixed header `X-Scroblin-Token`. Configure in `config.toml`:
 ```toml
@@ -142,7 +142,7 @@ Code is deployed. **Production testing not yet complete** — user is testing Pl
 
 ## Deployment Notes
 
-- Container: `scroblin`, port 4567, `restart: unless-stopped`
+- Container: `scrobgoblin`, port 4567, `restart: unless-stopped`
 - Config: `./config.toml` mounted read-only at `/app/config.toml`
 - Network: `proxiable` (Traefik), plus `extra_hosts: koito.geary.quest:host-gateway` for internal routing
 - No mem_limit set — footprint is ~8 MB, well within safe range

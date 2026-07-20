@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     let app = router::build_router(state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    println!("Scroblin listening on 0.0.0.0:{}", port);
+    println!("Scrobgoblin listening on 0.0.0.0:{}", port);
     axum::serve(listener, app).await?;
     Ok(())
 }

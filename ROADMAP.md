@@ -1,4 +1,4 @@
-# Scroblin Roadmap
+# Scrobgoblin Roadmap
 
 ---
 
@@ -8,7 +8,7 @@
 
 The `validate-token` and `submit-listens` handlers now check the `Authorization: Token <value>` header against `server.webhook_token` in `config.toml`. This matches the token Navidrome already sends via `ND_LISTENBRAINZ_APIKEY`. If the token is unset, all requests are allowed (safe for internal-only deployments). If set, mismatched requests receive HTTP 401.
 
-This closes the public-exposure risk from the Traefik routing at `https://scroblin.geary.quest`.
+This closes the public-exposure risk from the Traefik routing at `https://scrobgoblin.geary.quest`.
 
 ---
 
@@ -25,7 +25,7 @@ Scrobbling from both the Navidrome web UI and mobile Subsonic clients is confirm
 **Status:** Implemented 2026-06-02. Pending production testing.
 
 Plex and Jellyfin webhook handlers now support optional per-source token authentication:
-- **Plex:** URL-embedded token — webhook URL becomes `http://scroblin:4567/webhooks/plex/{token}`. Legacy `/webhooks/plex` returns 404 with a helpful migration log.
+- **Plex:** URL-embedded token — webhook URL becomes `http://scrobgoblin:4567/webhooks/plex/{token}`. Legacy `/webhooks/plex` returns 404 with a helpful migration log.
 - **Jellyfin:** Fixed header `X-Scroblin-Token` — configure in Jellyfin's webhook plugin as a custom header.
 
 Both default to open (all requests allowed) when the section is absent from `config.toml`. If set, mismatched requests receive HTTP 401. Token scrubbed from 404 logs to avoid credential exposure.

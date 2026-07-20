@@ -11,7 +11,7 @@ The Docker compose mounts the `conf/` **directory** (not the file) and runs the 
 ```yaml
 volumes:
   - ./conf:/conf:ro
-command: ["/bin/sh", "-c", "cd /conf && exec /app/scroblin"]
+command: ["/bin/sh", "-c", "cd /conf && exec /app/scrobgoblin"]
 ```
 
 **Why a directory mount?** Colima's sshfs layer can't reliably bind-mount individual files — Docker fails with `mkdir /Users/paul: file exists` even when the file exists. Mounting the containing directory avoids this. The app reads `config.toml` from its CWD, so changing into `/conf` before exec is the only other required change.
@@ -30,7 +30,7 @@ cargo test              # Run all tests
 cargo test <name>       # Run a single test by name
 cargo check             # Fast type-check without building
 docker compose up -d    # Run via Docker (mounts conf/ directory; see Config above)
-docker build -t scroblin:latest .
+docker build -t scrobgoblin:latest .
 ```
 
 ## Architecture
@@ -101,7 +101,7 @@ Webhook POST → source parser → NowPlayingEvent → fan_out_now_playing
 
 **Duplicate `PlaybackStop` events:** Jellyfin fires two `PlaybackStop` notifications per track — one at the real playback position and one at position 0 (session cleanup when the next track starts). The position-0 event is filtered in `parse()` via `played_position_ticks == Some(0)`. Without this filter every song scrobbles twice.
 
-**Webhook template is required:** The Jellyfin Generic Client webhook sends an empty body unless a Handlebars template is configured. An empty body causes Scroblin to return 400 (`EOF while parsing JSON`). The template is stored base64-encoded in `Jellyfin/config/plugins/configurations/Jellyfin.Plugin.Webhook.xml`. Edit the XML directly rather than through the Jellyfin UI to avoid encoding issues.
+**Webhook template is required:** The Jellyfin Generic Client webhook sends an empty body unless a Handlebars template is configured. An empty body causes Scrobgoblin to return 400 (`EOF while parsing JSON`). The template is stored base64-encoded in `Jellyfin/config/plugins/configurations/Jellyfin.Plugin.Webhook.xml`. Edit the XML directly rather than through the Jellyfin UI to avoid encoding issues.
 
 Current template (decoded):
 ```json
