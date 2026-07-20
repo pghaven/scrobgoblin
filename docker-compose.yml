@@ -4,6 +4,7 @@ services:
     image: scroblin:latest
     container_name: scroblin
     restart: unless-stopped
+    mem_limit: 128m
     ports:
       - "4567:4567"
     volumes:
