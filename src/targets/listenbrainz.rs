@@ -4,6 +4,38 @@ use serde_json::{json, Value};
 
 const LB_BASE_URL: &str = "https://api.listenbrainz.org";
 
+use crate::targets::ScrobbleTarget;
+use async_trait::async_trait;
+
+pub struct ListenBrainzTarget {
+    cfg: crate::config::ListenBrainzConfig,
+    client: reqwest::Client,
+}
+
+impl ListenBrainzTarget {
+    pub fn from_config(cfg: &crate::config::ListenBrainzConfig, client: reqwest::Client) -> Self {
+        Self { cfg: cfg.clone(), client }
+    }
+}
+
+#[async_trait]
+impl ScrobbleTarget for ListenBrainzTarget {
+    fn name(&self) -> &'static str {
+        "ListenBrainz"
+    }
+
+    async fn submit(&self, event: &PlayEvent) -> Result<()> {
+        submit_to(LB_BASE_URL, &self.cfg.user_token, &self.client, event).await
+    }
+
+    async fn submit_now_playing(&self, event: &NowPlayingEvent) -> Result<()> {
+        if !self.cfg.forward_now_playing.unwrap_or(true) {
+            return Ok(());
+        }
+        submit_now_playing_to(LB_BASE_URL, &self.cfg.user_token, &self.client, event).await
+    }
+}
+
 pub fn build_lb_payload(event: &PlayEvent) -> Value {
     let mut track_metadata = json!({
         "artist_name": event.artist,
@@ -203,5 +235,32 @@ mod tests {
         let result = submit_now_playing_to(&server.url(), "test-token", &client, &event).await;
         assert!(result.is_ok());
         mock.assert_async().await;
+    }
+
+    use crate::targets::ScrobbleTarget;
+
+    fn test_lb_config(forward_now_playing: Option<bool>) -> crate::config::ListenBrainzConfig {
+        crate::config::ListenBrainzConfig {
+            user_token: "test-token".to_string(),
+            forward_now_playing,
+        }
+    }
+
+    #[test]
+    fn listenbrainz_target_name_is_listenbrainz() {
+        let target = ListenBrainzTarget::from_config(&test_lb_config(None), reqwest::Client::new());
+        assert_eq!(target.name(), "ListenBrainz");
+    }
+
+    #[test]
+    fn listenbrainz_forward_now_playing_defaults_to_true_when_unset() {
+        let cfg = test_lb_config(None);
+        assert!(cfg.forward_now_playing.unwrap_or(true));
+    }
+
+    #[test]
+    fn listenbrainz_forward_now_playing_respects_explicit_false() {
+        let cfg = test_lb_config(Some(false));
+        assert!(!cfg.forward_now_playing.unwrap_or(true));
     }
 }
