@@ -17,6 +17,12 @@ async fn main() -> anyhow::Result<()> {
     let port = cfg.server.port;
     let client = reqwest::Client::new();
     let targets = targets::build_targets(&cfg, client.clone());
+    if targets.is_empty() {
+        eprintln!("[WARN] No scrobble targets configured — check config.toml section names ([koito]/[listenbrainz]/[lastfm])");
+    } else {
+        let names: Vec<&str> = targets.iter().map(|t| t.name()).collect();
+        println!("Active scrobble targets: {}", names.join(", "));
+    }
     let cfg = Arc::new(cfg);
 
     let state = router::AppState { cfg, targets };
