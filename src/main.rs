@@ -15,10 +15,11 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("invalid config.toml: {}", e))?;
 
     let port = cfg.server.port;
-    let cfg = Arc::new(cfg);
     let client = reqwest::Client::new();
+    let targets = targets::build_targets(&cfg, client.clone());
+    let cfg = Arc::new(cfg);
 
-    let state = router::AppState { cfg, client };
+    let state = router::AppState { cfg, targets };
     let app = router::build_router(state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;

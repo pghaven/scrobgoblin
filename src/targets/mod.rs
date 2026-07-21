@@ -36,83 +36,55 @@ pub trait ScrobbleTarget: Send + Sync {
     }
 }
 
-pub async fn fan_out(cfg: Arc<Config>, client: reqwest::Client, event: PlayEvent) {
-    let event = Arc::new(event);
-
-    let (cfg1, client1, event1) = (cfg.clone(), client.clone(), event.clone());
-    let t1 = tokio::spawn(async move {
-        for attempt in 1..=3u32 {
-            match koito::submit(&cfg1.koito, &client1, &event1).await {
-                Ok(()) => {
-                    println!("[OK] {} → Koito | {} - {}", event1.source, event1.artist, event1.track);
-                    break;
-                }
-                Err(e) => retry_log("Koito", &event1, attempt, &e).await,
-            }
-        }
-    });
-
-    let (cfg2, client2, event2) = (cfg.clone(), client.clone(), event.clone());
-    let t2 = tokio::spawn(async move {
-        for attempt in 1..=3u32 {
-            match listenbrainz::submit(&cfg2.listenbrainz, &client2, &event2).await {
-                Ok(()) => {
-                    println!("[OK] {} → ListenBrainz | {} - {}", event2.source, event2.artist, event2.track);
-                    break;
-                }
-                Err(e) => retry_log("ListenBrainz", &event2, attempt, &e).await,
-            }
-        }
-    });
-
-    let (cfg3, client3, event3) = (cfg.clone(), client.clone(), event.clone());
-    let t3 = tokio::spawn(async move {
-        for attempt in 1..=3u32 {
-            match lastfm::submit(&cfg3.lastfm, &client3, &event3).await {
-                Ok(()) => {
-                    println!("[OK] {} → Last.fm | {} - {}", event3.source, event3.artist, event3.track);
-                    break;
-                }
-                Err(e) => retry_log("Last.fm", &event3, attempt, &e).await,
-            }
-        }
-    });
-
-    let _ = tokio::join!(t1, t2, t3);
+pub fn build_targets(cfg: &Config, client: reqwest::Client) -> Vec<Arc<dyn ScrobbleTarget>> {
+    let mut targets: Vec<Arc<dyn ScrobbleTarget>> = Vec::new();
+    if let Some(k) = &cfg.koito {
+        targets.push(Arc::new(koito::KoitoTarget::from_config(k, client.clone())));
+    }
+    if let Some(lb) = &cfg.listenbrainz {
+        targets.push(Arc::new(listenbrainz::ListenBrainzTarget::from_config(lb, client.clone())));
+    }
+    if let Some(lfm) = &cfg.lastfm {
+        targets.push(Arc::new(lastfm::LastFmTarget::from_config(lfm, client.clone())));
+    }
+    targets
 }
 
-pub async fn fan_out_now_playing(cfg: Arc<Config>, client: reqwest::Client, event: NowPlayingEvent) {
+async fn dispatch<E, F, Fut>(targets: Vec<Arc<dyn ScrobbleTarget>>, event: E, join: bool, call: F)
+where
+    E: Send + Sync + 'static,
+    F: Fn(Arc<dyn ScrobbleTarget>, Arc<E>) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
     let event = Arc::new(event);
-
-    if cfg.listenbrainz.forward_now_playing.unwrap_or(true) {
-        let (cfg1, client1, event1) = (cfg.clone(), client.clone(), event.clone());
-        tokio::spawn(async move {
-            match listenbrainz::submit_now_playing(&cfg1.listenbrainz, &client1, &event1).await {
-                Ok(()) => println!("[NOW] {} → ListenBrainz | {} - {}", event1.source, event1.artist, event1.track),
-                Err(e) => eprintln!("[NOW-FAIL] {} → ListenBrainz now-playing | {} - {} | {}", event1.source, event1.artist, event1.track, e),
-            }
-        });
+    let handles: Vec<_> = targets
+        .into_iter()
+        .map(|t| {
+            let event = event.clone();
+            tokio::spawn(call(t, event))
+        })
+        .collect();
+    if join {
+        for h in handles {
+            let _ = h.await;
+        }
     }
+}
 
-    if cfg.lastfm.forward_now_playing.unwrap_or(true) {
-        let (cfg2, client2, event2) = (cfg.clone(), client.clone(), event.clone());
-        tokio::spawn(async move {
-            match lastfm::update_now_playing(&cfg2.lastfm, &client2, &event2).await {
-                Ok(()) => println!("[NOW] {} → Last.fm | {} - {}", event2.source, event2.artist, event2.track),
-                Err(e) => eprintln!("[NOW-FAIL] {} → Last.fm now-playing | {} - {} | {}", event2.source, event2.artist, event2.track, e),
-            }
-        });
-    }
+pub async fn fan_out(targets: Vec<Arc<dyn ScrobbleTarget>>, event: PlayEvent) {
+    dispatch(targets, event, true, |t, event| async move {
+        t.submit_with_retry(&event).await;
+    })
+    .await;
+}
 
-    if cfg.koito.forward_now_playing.unwrap_or(false) {
-        let (cfg3, client3, event3) = (cfg.clone(), client.clone(), event.clone());
-        tokio::spawn(async move {
-            match koito::submit_now_playing(&cfg3.koito, &client3, &event3).await {
-                Ok(()) => println!("[NOW] {} → Koito | {} - {}", event3.source, event3.artist, event3.track),
-                Err(e) => eprintln!("[NOW-FAIL] {} → Koito now-playing | {} - {} | {}", event3.source, event3.artist, event3.track, e),
-            }
-        });
-    }
+pub async fn fan_out_now_playing(targets: Vec<Arc<dyn ScrobbleTarget>>, event: NowPlayingEvent) {
+    dispatch(targets, event, false, |t, event| async move {
+        if let Err(e) = t.submit_now_playing(&event).await {
+            eprintln!("[NOW-FAIL] {} → {} | {}", event.source, t.name(), e);
+        }
+    })
+    .await;
 }
 
 async fn retry_log(target: &str, event: &PlayEvent, attempt: u32, e: &anyhow::Error) {
@@ -218,33 +190,29 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
-    fn minimal_cfg() -> Arc<Config> {
-        Arc::new(Config {
+    #[tokio::test]
+    async fn fan_out_now_playing_does_not_panic_when_all_disabled() {
+        let cfg = Arc::new(Config {
             server: ServerConfig { port: 4567, webhook_token: None },
             plex: PlexConfig { webhook_token: None },
             jellyfin: JellyfinConfig { webhook_token: None },
-            koito: KoitoConfig {
+            koito: Some(KoitoConfig {
                 base_url: "http://localhost:1".to_string(),
                 api_key: "k".to_string(),
                 forward_now_playing: Some(false),
-            },
-            listenbrainz: ListenBrainzConfig {
+            }),
+            listenbrainz: Some(ListenBrainzConfig {
                 user_token: "l".to_string(),
                 forward_now_playing: Some(false),
-            },
-            lastfm: LastFmConfig {
+            }),
+            lastfm: Some(LastFmConfig {
                 api_key: "a".to_string(),
                 shared_secret: "s".to_string(),
                 session_key: "k".to_string(),
                 forward_now_playing: Some(false),
-            },
-        })
-    }
-
-    #[tokio::test]
-    async fn fan_out_now_playing_does_not_panic_when_all_disabled() {
-        let cfg = minimal_cfg();
-        let client = reqwest::Client::new();
+            }),
+        });
+        let targets = build_targets(&cfg, reqwest::Client::new());
         let event = NowPlayingEvent {
             artist: "Test".to_string(),
             album: None,
@@ -252,8 +220,7 @@ mod tests {
             duration_secs: None,
             source: Source::Navidrome,
         };
-        // All targets disabled — should complete immediately without panicking
-        fan_out_now_playing(cfg, client, event).await;
+        fan_out_now_playing(targets, event).await;
     }
 
     #[tokio::test]
@@ -262,23 +229,23 @@ mod tests {
             server: ServerConfig { port: 4567, webhook_token: None },
             plex: PlexConfig { webhook_token: None },
             jellyfin: JellyfinConfig { webhook_token: None },
-            koito: KoitoConfig {
+            koito: Some(KoitoConfig {
                 base_url: "http://localhost:1".to_string(),
                 api_key: "k".to_string(),
                 forward_now_playing: Some(false),
-            },
-            listenbrainz: ListenBrainzConfig {
+            }),
+            listenbrainz: Some(ListenBrainzConfig {
                 user_token: "l".to_string(),
-                forward_now_playing: Some(true),  // enabled
-            },
-            lastfm: LastFmConfig {
+                forward_now_playing: Some(true), // enabled
+            }),
+            lastfm: Some(LastFmConfig {
                 api_key: "a".to_string(),
                 shared_secret: "s".to_string(),
                 session_key: "k".to_string(),
                 forward_now_playing: Some(false),
-            },
+            }),
         });
-        let client = reqwest::Client::new();
+        let targets = build_targets(&cfg, reqwest::Client::new());
         let event = NowPlayingEvent {
             artist: "Test".to_string(),
             album: None,
@@ -288,6 +255,66 @@ mod tests {
         };
         // Should complete without panicking even though the spawned LB request will fail
         // (localhost:1 is unreachable — the spawn is fire-and-forget so this still returns)
-        fan_out_now_playing(cfg, client, event).await;
+        fan_out_now_playing(targets, event).await;
+    }
+
+    #[tokio::test]
+    async fn fan_out_joins_all_spawned_tasks() {
+        let calls_a = Arc::new(AtomicUsize::new(0));
+        let calls_b = Arc::new(AtomicUsize::new(0));
+        let targets: Vec<Arc<dyn ScrobbleTarget>> = vec![
+            Arc::new(CountingTarget {
+                submit_calls: calls_a.clone(),
+                submit_now_playing_calls: Arc::new(AtomicUsize::new(0)),
+                fail_submit: false,
+            }),
+            Arc::new(CountingTarget {
+                submit_calls: calls_b.clone(),
+                submit_now_playing_calls: Arc::new(AtomicUsize::new(0)),
+                fail_submit: false,
+            }),
+        ];
+        fan_out(targets, test_play_event()).await;
+        assert_eq!(calls_a.load(Ordering::SeqCst), 1);
+        assert_eq!(calls_b.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn build_targets_skips_unconfigured_lastfm() {
+        let cfg = Config {
+            server: ServerConfig { port: 4567, webhook_token: None },
+            plex: PlexConfig { webhook_token: None },
+            jellyfin: JellyfinConfig { webhook_token: None },
+            koito: Some(KoitoConfig {
+                base_url: "http://k".to_string(),
+                api_key: "k".to_string(),
+                forward_now_playing: None,
+            }),
+            listenbrainz: Some(ListenBrainzConfig {
+                user_token: "l".to_string(),
+                forward_now_playing: None,
+            }),
+            lastfm: None,
+        };
+        let targets = build_targets(&cfg, reqwest::Client::new());
+        assert_eq!(targets.len(), 2);
+        let names: Vec<&str> = targets.iter().map(|t| t.name()).collect();
+        assert!(names.contains(&"Koito"));
+        assert!(names.contains(&"ListenBrainz"));
+        assert!(!names.contains(&"Last.fm"));
+    }
+
+    #[test]
+    fn build_targets_returns_empty_when_none_configured() {
+        let cfg = Config {
+            server: ServerConfig { port: 4567, webhook_token: None },
+            plex: PlexConfig { webhook_token: None },
+            jellyfin: JellyfinConfig { webhook_token: None },
+            koito: None,
+            listenbrainz: None,
+            lastfm: None,
+        };
+        let targets = build_targets(&cfg, reqwest::Client::new());
+        assert!(targets.is_empty());
     }
 }

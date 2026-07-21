@@ -7,9 +7,12 @@ pub struct Config {
     pub plex: PlexConfig,
     #[serde(default)]
     pub jellyfin: JellyfinConfig,
-    pub koito: KoitoConfig,
-    pub listenbrainz: ListenBrainzConfig,
-    pub lastfm: LastFmConfig,
+    #[serde(default)]
+    pub koito: Option<KoitoConfig>,
+    #[serde(default)]
+    pub listenbrainz: Option<ListenBrainzConfig>,
+    #[serde(default)]
+    pub lastfm: Option<LastFmConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -76,9 +79,9 @@ session_key = "lfm-session"
 "#;
         let cfg: Config = toml::from_str(toml).expect("should parse");
         assert_eq!(cfg.server.port, 4567);
-        assert_eq!(cfg.koito.base_url, "http://koito.example.com");
-        assert_eq!(cfg.listenbrainz.user_token, "lb-token");
-        assert_eq!(cfg.lastfm.api_key, "lfm-key");
+        assert_eq!(cfg.koito.unwrap().base_url, "http://koito.example.com");
+        assert_eq!(cfg.listenbrainz.unwrap().user_token, "lb-token");
+        assert_eq!(cfg.lastfm.unwrap().api_key, "lfm-key");
     }
 
     #[test]
@@ -102,9 +105,9 @@ shared_secret = "lfm-secret"
 session_key = "lfm-session"
 "#;
         let cfg: Config = toml::from_str(toml).expect("should parse");
-        assert_eq!(cfg.koito.forward_now_playing, Some(true));
-        assert_eq!(cfg.listenbrainz.forward_now_playing, Some(false));
-        assert_eq!(cfg.lastfm.forward_now_playing, None); // omitted → None
+        assert_eq!(cfg.koito.unwrap().forward_now_playing, Some(true));
+        assert_eq!(cfg.listenbrainz.unwrap().forward_now_playing, Some(false));
+        assert_eq!(cfg.lastfm.unwrap().forward_now_playing, None); // omitted → None
     }
 
     #[test]
@@ -157,5 +160,36 @@ session_key = "lfm-session"
         let cfg: Config = toml::from_str(toml).expect("should parse");
         assert!(cfg.plex.webhook_token.is_none());
         assert!(cfg.jellyfin.webhook_token.is_none());
+    }
+
+    #[test]
+    fn target_sections_are_all_optional() {
+        let toml = r#"
+[server]
+port = 4567
+"#;
+        let cfg: Config = toml::from_str(toml).expect("should parse");
+        assert!(cfg.koito.is_none());
+        assert!(cfg.listenbrainz.is_none());
+        assert!(cfg.lastfm.is_none());
+    }
+
+    #[test]
+    fn partial_target_configuration_parses() {
+        let toml = r#"
+[server]
+port = 4567
+
+[koito]
+base_url = "http://koito.example.com"
+api_key = "koito-key"
+
+[listenbrainz]
+user_token = "lb-token"
+"#;
+        let cfg: Config = toml::from_str(toml).expect("should parse");
+        assert!(cfg.koito.is_some());
+        assert!(cfg.listenbrainz.is_some());
+        assert!(cfg.lastfm.is_none());
     }
 }

@@ -12,7 +12,7 @@ use crate::{config::Config, sources, targets, threshold};
 #[derive(Clone)]
 pub struct AppState {
     pub cfg: Arc<Config>,
-    pub client: reqwest::Client,
+    pub targets: Vec<Arc<dyn targets::ScrobbleTarget>>,
 }
 
 pub fn build_router(state: AppState) -> Router {
@@ -100,7 +100,7 @@ async fn navidrome_handler(
         match sources::navidrome::parse_now_playing(&body) {
             Ok(event) => {
                 println!("[REQ] playing_now | {} - {}", event.artist, event.track);
-                tokio::spawn(targets::fan_out_now_playing(state.cfg, state.client, event));
+                tokio::spawn(targets::fan_out_now_playing(state.targets.clone(), event));
             }
             Err(e) => eprintln!("[WARN] Navidrome now-playing parse error: {}", e),
         }
@@ -112,7 +112,7 @@ async fn navidrome_handler(
     println!("[REQ] POST /1/submit-listens ({} listen(s)){}",  body.payload.len(), ts_info);
     match sources::navidrome::parse(&body) {
         Ok(event) if threshold::qualifies(&event) => {
-            tokio::spawn(targets::fan_out(state.cfg, state.client, event));
+            tokio::spawn(targets::fan_out(state.targets.clone(), event));
             lb_ok().into_response()
         }
         Ok(_) => lb_ok().into_response(),
@@ -170,7 +170,7 @@ async fn plex_handler(
             match sources::plex::parse_now_playing(&plex_payload) {
                 Ok(event) => {
                     println!("[REQ] playing_now (plex) | {} - {}", event.artist, event.track);
-                    tokio::spawn(targets::fan_out_now_playing(state.cfg, state.client, event));
+                    tokio::spawn(targets::fan_out_now_playing(state.targets.clone(), event));
                 }
                 Err(e) => eprintln!("[WARN] Plex now-playing parse error: {}", e),
             }
@@ -179,7 +179,7 @@ async fn plex_handler(
         "media.scrobble" => {
             match sources::plex::parse(&plex_payload) {
                 Ok(event) if threshold::qualifies(&event) => {
-                    tokio::spawn(targets::fan_out(state.cfg, state.client, event));
+                    tokio::spawn(targets::fan_out(state.targets.clone(), event));
                 }
                 Ok(_) => {}
                 Err(e) => eprintln!("[WARN] Plex scrobble parse error: {}", e),
@@ -209,7 +209,7 @@ async fn jellyfin_handler(
             match sources::jellyfin::parse_now_playing(&body) {
                 Ok(event) => {
                     println!("[REQ] playing_now (jellyfin) | {} - {}", event.artist, event.track);
-                    tokio::spawn(targets::fan_out_now_playing(state.cfg, state.client, event));
+                    tokio::spawn(targets::fan_out_now_playing(state.targets.clone(), event));
                 }
                 Err(e) => eprintln!("[WARN] Jellyfin now-playing parse error: {}", e),
             }
@@ -218,7 +218,7 @@ async fn jellyfin_handler(
         "PlaybackStop" => {
             match sources::jellyfin::parse(&body) {
                 Ok(event) if threshold::qualifies(&event) => {
-                    tokio::spawn(targets::fan_out(state.cfg, state.client, event));
+                    tokio::spawn(targets::fan_out(state.targets.clone(), event));
                 }
                 Ok(_) => {}
                 Err(e) if e.to_string().contains("position 0") => {}
@@ -237,29 +237,30 @@ mod tests {
     use tower::ServiceExt;
 
     fn test_app_plex_token(plex_token: Option<&str>) -> Router {
-        let cfg = Arc::new(Config {
+        let cfg = Config {
             server: crate::config::ServerConfig { port: 4567, webhook_token: None },
             plex: crate::config::PlexConfig {
                 webhook_token: plex_token.map(|s| s.to_string()),
             },
             jellyfin: crate::config::JellyfinConfig { webhook_token: None },
-            koito: crate::config::KoitoConfig {
+            koito: Some(crate::config::KoitoConfig {
                 base_url: "http://k".into(),
                 api_key: "k".into(),
                 forward_now_playing: None,
-            },
-            listenbrainz: crate::config::ListenBrainzConfig {
+            }),
+            listenbrainz: Some(crate::config::ListenBrainzConfig {
                 user_token: "t".into(),
                 forward_now_playing: None,
-            },
-            lastfm: crate::config::LastFmConfig {
+            }),
+            lastfm: Some(crate::config::LastFmConfig {
                 api_key: "a".into(),
                 shared_secret: "s".into(),
                 session_key: "k".into(),
                 forward_now_playing: None,
-            },
-        });
-        build_router(AppState { cfg, client: reqwest::Client::new() })
+            }),
+        };
+        let targets = targets::build_targets(&cfg, reqwest::Client::new());
+        build_router(AppState { cfg: Arc::new(cfg), targets })
     }
 
     #[tokio::test]
@@ -317,29 +318,30 @@ mod tests {
     }
 
     fn test_app_jellyfin_token(jellyfin_token: Option<&str>) -> Router {
-        let cfg = Arc::new(Config {
+        let cfg = Config {
             server: crate::config::ServerConfig { port: 4567, webhook_token: None },
             plex: crate::config::PlexConfig { webhook_token: None },
             jellyfin: crate::config::JellyfinConfig {
                 webhook_token: jellyfin_token.map(|s| s.to_string()),
             },
-            koito: crate::config::KoitoConfig {
+            koito: Some(crate::config::KoitoConfig {
                 base_url: "http://k".into(),
                 api_key: "k".into(),
                 forward_now_playing: None,
-            },
-            listenbrainz: crate::config::ListenBrainzConfig {
+            }),
+            listenbrainz: Some(crate::config::ListenBrainzConfig {
                 user_token: "t".into(),
                 forward_now_playing: None,
-            },
-            lastfm: crate::config::LastFmConfig {
+            }),
+            lastfm: Some(crate::config::LastFmConfig {
                 api_key: "a".into(),
                 shared_secret: "s".into(),
                 session_key: "k".into(),
                 forward_now_playing: None,
-            },
-        });
-        build_router(AppState { cfg, client: reqwest::Client::new() })
+            }),
+        };
+        let targets = targets::build_targets(&cfg, reqwest::Client::new());
+        build_router(AppState { cfg: Arc::new(cfg), targets })
     }
 
     #[tokio::test]
@@ -423,27 +425,28 @@ mod tests {
     fn test_app_plex_nowplaying() -> Router {
         // All forward_now_playing flags set to false so fan_out_now_playing
         // does not make real HTTP calls during tests.
-        let cfg = Arc::new(Config {
+        let cfg = Config {
             server: crate::config::ServerConfig { port: 4567, webhook_token: None },
             plex: crate::config::PlexConfig { webhook_token: None },
             jellyfin: crate::config::JellyfinConfig { webhook_token: None },
-            koito: crate::config::KoitoConfig {
+            koito: Some(crate::config::KoitoConfig {
                 base_url: "http://k".into(),
                 api_key: "k".into(),
                 forward_now_playing: Some(false),
-            },
-            listenbrainz: crate::config::ListenBrainzConfig {
+            }),
+            listenbrainz: Some(crate::config::ListenBrainzConfig {
                 user_token: "t".into(),
                 forward_now_playing: Some(false),
-            },
-            lastfm: crate::config::LastFmConfig {
+            }),
+            lastfm: Some(crate::config::LastFmConfig {
                 api_key: "a".into(),
                 shared_secret: "s".into(),
                 session_key: "k".into(),
                 forward_now_playing: Some(false),
-            },
-        });
-        build_router(AppState { cfg, client: reqwest::Client::new() })
+            }),
+        };
+        let targets = targets::build_targets(&cfg, reqwest::Client::new());
+        build_router(AppState { cfg: Arc::new(cfg), targets })
     }
 
     fn plex_nowplaying_request(event_type: &str) -> http::Request<Body> {
