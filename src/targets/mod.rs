@@ -3,8 +3,38 @@ pub mod lastfm;
 pub mod listenbrainz;
 
 use crate::{config::Config, event::{NowPlayingEvent, PlayEvent}};
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
+
+#[async_trait]
+pub trait ScrobbleTarget: Send + Sync {
+    fn name(&self) -> &'static str;
+
+    async fn submit(&self, event: &PlayEvent) -> anyhow::Result<()>;
+
+    /// Default no-op: targets that don't support now-playing write zero code.
+    async fn submit_now_playing(&self, _event: &NowPlayingEvent) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    /// Default retry policy: 3 attempts, 1s -> 4s backoff. Individual targets
+    /// may override if a specific API needs different retry behavior.
+    async fn submit_with_retry(&self, event: &PlayEvent) {
+        for attempt in 1..=3u32 {
+            match self.submit(event).await {
+                Ok(()) => {
+                    println!(
+                        "[OK] {} → {} | {} - {}",
+                        event.source, self.name(), event.artist, event.track
+                    );
+                    return;
+                }
+                Err(e) => retry_log(self.name(), event, attempt, &e).await,
+            }
+        }
+    }
+}
 
 pub async fn fan_out(cfg: Arc<Config>, client: reqwest::Client, event: PlayEvent) {
     let event = Arc::new(event);
@@ -107,6 +137,86 @@ mod tests {
     use super::*;
     use crate::config::{JellyfinConfig, KoitoConfig, LastFmConfig, ListenBrainzConfig, PlexConfig, ServerConfig};
     use crate::event::{NowPlayingEvent, Source};
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingTarget {
+        submit_calls: Arc<AtomicUsize>,
+        submit_now_playing_calls: Arc<AtomicUsize>,
+        fail_submit: bool,
+    }
+
+    #[async_trait]
+    impl ScrobbleTarget for CountingTarget {
+        fn name(&self) -> &'static str {
+            "Counting"
+        }
+
+        async fn submit(&self, _event: &PlayEvent) -> anyhow::Result<()> {
+            self.submit_calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail_submit {
+                anyhow::bail!("forced failure");
+            }
+            Ok(())
+        }
+
+        async fn submit_now_playing(&self, _event: &NowPlayingEvent) -> anyhow::Result<()> {
+            self.submit_now_playing_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    struct DefaultOnlyTarget;
+
+    #[async_trait]
+    impl ScrobbleTarget for DefaultOnlyTarget {
+        fn name(&self) -> &'static str {
+            "DefaultOnly"
+        }
+
+        async fn submit(&self, _event: &PlayEvent) -> anyhow::Result<()> {
+            Ok(())
+        }
+        // submit_now_playing not overridden — uses the trait's default no-op
+    }
+
+    fn test_play_event() -> PlayEvent {
+        PlayEvent {
+            artist: "Test Artist".to_string(),
+            album: None,
+            track: "Test Track".to_string(),
+            duration_secs: Some(200),
+            played_at: chrono::Utc::now(),
+            source: crate::event::Source::Navidrome,
+        }
+    }
+
+    #[tokio::test]
+    async fn default_submit_now_playing_returns_ok() {
+        let target = DefaultOnlyTarget;
+        let event = NowPlayingEvent {
+            artist: "Test".to_string(),
+            album: None,
+            track: "Track".to_string(),
+            duration_secs: None,
+            source: crate::event::Source::Navidrome,
+        };
+        let result = target.submit_now_playing(&event).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn submit_with_retry_calls_submit_once_on_immediate_success() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let target = CountingTarget {
+            submit_calls: calls.clone(),
+            submit_now_playing_calls: Arc::new(AtomicUsize::new(0)),
+            fail_submit: false,
+        };
+        let event = test_play_event();
+        target.submit_with_retry(&event).await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
 
     fn minimal_cfg() -> Arc<Config> {
         Arc::new(Config {
