@@ -32,14 +32,6 @@ impl ScrobbleTarget for KoitoTarget {
     }
 }
 
-pub async fn submit(
-    cfg: &crate::config::KoitoConfig,
-    client: &reqwest::Client,
-    event: &PlayEvent,
-) -> Result<()> {
-    submit_to(&cfg.base_url, &cfg.api_key, client, event).await
-}
-
 pub async fn submit_to(
     base_url: &str,
     api_key: &str,
@@ -60,14 +52,6 @@ pub async fn submit_to(
         anyhow::bail!("Koito HTTP {} | {}", status, text);
     }
     Ok(())
-}
-
-pub async fn submit_now_playing(
-    cfg: &crate::config::KoitoConfig,
-    client: &reqwest::Client,
-    event: &NowPlayingEvent,
-) -> Result<()> {
-    submit_now_playing_to(&cfg.base_url, &cfg.api_key, client, event).await
 }
 
 pub async fn submit_now_playing_to(

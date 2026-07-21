@@ -70,14 +70,6 @@ pub fn build_now_playing_payload(event: &NowPlayingEvent) -> Value {
     })
 }
 
-pub async fn submit(
-    cfg: &crate::config::ListenBrainzConfig,
-    client: &reqwest::Client,
-    event: &PlayEvent,
-) -> Result<()> {
-    submit_to(LB_BASE_URL, &cfg.user_token, client, event).await
-}
-
 pub async fn submit_to(
     base_url: &str,
     token: &str,
@@ -118,14 +110,6 @@ pub async fn submit_now_playing_to(
         anyhow::bail!("ListenBrainz error: {}", text);
     }
     Ok(())
-}
-
-pub async fn submit_now_playing(
-    cfg: &crate::config::ListenBrainzConfig,
-    client: &reqwest::Client,
-    event: &NowPlayingEvent,
-) -> Result<()> {
-    submit_now_playing_to(LB_BASE_URL, &cfg.user_token, client, event).await
 }
 
 #[cfg(test)]
@@ -236,8 +220,6 @@ mod tests {
         assert!(result.is_ok());
         mock.assert_async().await;
     }
-
-    use crate::targets::ScrobbleTarget;
 
     fn test_lb_config(forward_now_playing: Option<bool>) -> crate::config::ListenBrainzConfig {
         crate::config::ListenBrainzConfig {

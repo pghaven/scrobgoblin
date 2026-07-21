@@ -16,6 +16,8 @@ webhook_token = "your-webhook-token"
 # In Jellyfin's webhook plugin, add header: X-Scroblin-Token: your-jellyfin-secret
 # webhook_token = "your-jellyfin-secret"
 
+# [koito], [listenbrainz], and [lastfm] are all optional — omit any section
+# entirely to disable scrobbling to that target.
 [koito]
 base_url = "http://koito.yourdomain.com"
 api_key  = "your-koito-api-key"

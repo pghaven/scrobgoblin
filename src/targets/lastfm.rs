@@ -46,14 +46,6 @@ pub fn build_signature(params: &BTreeMap<String, String>, shared_secret: &str) -
     format!("{:x}", md5::compute(sig_str.as_bytes()))
 }
 
-pub async fn submit(
-    cfg: &LastFmConfig,
-    client: &reqwest::Client,
-    event: &PlayEvent,
-) -> Result<()> {
-    submit_to(LFM_BASE_URL, cfg, client, event).await
-}
-
 pub async fn submit_to(
     base_url: &str,
     cfg: &LastFmConfig,
@@ -89,14 +81,6 @@ pub async fn submit_to(
         anyhow::bail!("Last.fm error: {}", text);
     }
     Ok(())
-}
-
-pub async fn update_now_playing(
-    cfg: &LastFmConfig,
-    client: &reqwest::Client,
-    event: &NowPlayingEvent,
-) -> Result<()> {
-    update_now_playing_to(LFM_BASE_URL, cfg, client, event).await
 }
 
 pub async fn update_now_playing_to(
@@ -273,8 +257,6 @@ mod tests {
         let result = update_now_playing_to(&server.url(), &cfg, &client, &event).await;
         assert!(result.is_err());
     }
-
-    use crate::targets::ScrobbleTarget;
 
     fn test_target_cfg(forward_now_playing: Option<bool>) -> LastFmConfig {
         LastFmConfig {

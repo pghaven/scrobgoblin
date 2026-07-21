@@ -16,6 +16,8 @@ A small, efficient Rust service that receives play webhooks from Navidrome, Plex
 | ListenBrainz | ListenBrainz API |
 | Last.fm | track.scrobble with MD5 signature |
 
+Each of `[koito]`, `[listenbrainz]`, and `[lastfm]` in `config.toml` is optional — omit any section to disable scrobbling to that target. At least one should typically be configured, but this isn't enforced.
+
 ## Setup
 
 1. Copy `config.toml.example` to `config.toml` and fill in your credentials
