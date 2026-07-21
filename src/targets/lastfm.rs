@@ -2,8 +2,39 @@ use crate::config::LastFmConfig;
 use crate::event::{NowPlayingEvent, PlayEvent};
 use anyhow::Result;
 use std::collections::BTreeMap;
+use crate::targets::ScrobbleTarget;
+use async_trait::async_trait;
 
 const LFM_BASE_URL: &str = "https://ws.audioscrobbler.com";
+
+pub struct LastFmTarget {
+    cfg: LastFmConfig,
+    client: reqwest::Client,
+}
+
+impl LastFmTarget {
+    pub fn from_config(cfg: &LastFmConfig, client: reqwest::Client) -> Self {
+        Self { cfg: cfg.clone(), client }
+    }
+}
+
+#[async_trait]
+impl ScrobbleTarget for LastFmTarget {
+    fn name(&self) -> &'static str {
+        "Last.fm"
+    }
+
+    async fn submit(&self, event: &PlayEvent) -> Result<()> {
+        submit_to(LFM_BASE_URL, &self.cfg, &self.client, event).await
+    }
+
+    async fn submit_now_playing(&self, event: &NowPlayingEvent) -> Result<()> {
+        if !self.cfg.forward_now_playing.unwrap_or(true) {
+            return Ok(());
+        }
+        update_now_playing_to(LFM_BASE_URL, &self.cfg, &self.client, event).await
+    }
+}
 
 pub fn build_signature(params: &BTreeMap<String, String>, shared_secret: &str) -> String {
     let mut sig_str = String::new();
@@ -241,5 +272,34 @@ mod tests {
         let event = test_now_playing_event();
         let result = update_now_playing_to(&server.url(), &cfg, &client, &event).await;
         assert!(result.is_err());
+    }
+
+    use crate::targets::ScrobbleTarget;
+
+    fn test_target_cfg(forward_now_playing: Option<bool>) -> LastFmConfig {
+        LastFmConfig {
+            api_key: "myapikey".to_string(),
+            shared_secret: "mysecret".to_string(),
+            session_key: "mysession".to_string(),
+            forward_now_playing,
+        }
+    }
+
+    #[test]
+    fn lastfm_target_name_is_lastfm() {
+        let target = LastFmTarget::from_config(&test_target_cfg(None), reqwest::Client::new());
+        assert_eq!(target.name(), "Last.fm");
+    }
+
+    #[test]
+    fn lastfm_forward_now_playing_defaults_to_true_when_unset() {
+        let cfg = test_target_cfg(None);
+        assert!(cfg.forward_now_playing.unwrap_or(true));
+    }
+
+    #[test]
+    fn lastfm_forward_now_playing_respects_explicit_false() {
+        let cfg = test_target_cfg(Some(false));
+        assert!(!cfg.forward_now_playing.unwrap_or(true));
     }
 }
