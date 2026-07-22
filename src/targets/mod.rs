@@ -2,7 +2,10 @@ pub mod koito;
 pub mod lastfm;
 pub mod listenbrainz;
 
-use crate::{config::Config, event::{NowPlayingEvent, PlayEvent}};
+use crate::{
+    config::Config,
+    event::{NowPlayingEvent, PlayEvent},
+};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
@@ -26,7 +29,10 @@ pub trait ScrobbleTarget: Send + Sync {
                 Ok(()) => {
                     println!(
                         "[OK] {} → {} | {} - {}",
-                        event.source, self.name(), event.artist, event.track
+                        event.source,
+                        self.name(),
+                        event.artist,
+                        event.track
                     );
                     return;
                 }
@@ -42,10 +48,16 @@ pub fn build_targets(cfg: &Config, client: reqwest::Client) -> Vec<Arc<dyn Scrob
         targets.push(Arc::new(koito::KoitoTarget::from_config(k, client.clone())));
     }
     if let Some(lb) = &cfg.listenbrainz {
-        targets.push(Arc::new(listenbrainz::ListenBrainzTarget::from_config(lb, client.clone())));
+        targets.push(Arc::new(listenbrainz::ListenBrainzTarget::from_config(
+            lb,
+            client.clone(),
+        )));
     }
     if let Some(lfm) = &cfg.lastfm {
-        targets.push(Arc::new(lastfm::LastFmTarget::from_config(lfm, client.clone())));
+        targets.push(Arc::new(lastfm::LastFmTarget::from_config(
+            lfm,
+            client.clone(),
+        )));
     }
     targets
 }
@@ -107,7 +119,9 @@ async fn retry_log(target: &str, event: &PlayEvent, attempt: u32, e: &anyhow::Er
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{JellyfinConfig, KoitoConfig, LastFmConfig, ListenBrainzConfig, PlexConfig, ServerConfig};
+    use crate::config::{
+        JellyfinConfig, KoitoConfig, LastFmConfig, ListenBrainzConfig, PlexConfig, ServerConfig,
+    };
     use crate::event::{NowPlayingEvent, Source};
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -193,9 +207,16 @@ mod tests {
     #[tokio::test]
     async fn fan_out_now_playing_does_not_panic_when_all_disabled() {
         let cfg = Arc::new(Config {
-            server: ServerConfig { port: 4567, webhook_token: None },
-            plex: PlexConfig { webhook_token: None },
-            jellyfin: JellyfinConfig { webhook_token: None },
+            server: ServerConfig {
+                port: 4567,
+                webhook_token: None,
+            },
+            plex: PlexConfig {
+                webhook_token: None,
+            },
+            jellyfin: JellyfinConfig {
+                webhook_token: None,
+            },
             koito: Some(KoitoConfig {
                 base_url: "http://localhost:1".to_string(),
                 api_key: "k".to_string(),
@@ -226,9 +247,16 @@ mod tests {
     #[tokio::test]
     async fn fan_out_now_playing_spawns_when_enabled() {
         let cfg = Arc::new(Config {
-            server: ServerConfig { port: 4567, webhook_token: None },
-            plex: PlexConfig { webhook_token: None },
-            jellyfin: JellyfinConfig { webhook_token: None },
+            server: ServerConfig {
+                port: 4567,
+                webhook_token: None,
+            },
+            plex: PlexConfig {
+                webhook_token: None,
+            },
+            jellyfin: JellyfinConfig {
+                webhook_token: None,
+            },
             koito: Some(KoitoConfig {
                 base_url: "http://localhost:1".to_string(),
                 api_key: "k".to_string(),
@@ -282,9 +310,16 @@ mod tests {
     #[test]
     fn build_targets_skips_unconfigured_lastfm() {
         let cfg = Config {
-            server: ServerConfig { port: 4567, webhook_token: None },
-            plex: PlexConfig { webhook_token: None },
-            jellyfin: JellyfinConfig { webhook_token: None },
+            server: ServerConfig {
+                port: 4567,
+                webhook_token: None,
+            },
+            plex: PlexConfig {
+                webhook_token: None,
+            },
+            jellyfin: JellyfinConfig {
+                webhook_token: None,
+            },
             koito: Some(KoitoConfig {
                 base_url: "http://k".to_string(),
                 api_key: "k".to_string(),
@@ -307,9 +342,16 @@ mod tests {
     #[test]
     fn build_targets_returns_empty_when_none_configured() {
         let cfg = Config {
-            server: ServerConfig { port: 4567, webhook_token: None },
-            plex: PlexConfig { webhook_token: None },
-            jellyfin: JellyfinConfig { webhook_token: None },
+            server: ServerConfig {
+                port: 4567,
+                webhook_token: None,
+            },
+            plex: PlexConfig {
+                webhook_token: None,
+            },
+            jellyfin: JellyfinConfig {
+                webhook_token: None,
+            },
             koito: None,
             listenbrainz: None,
             lastfm: None,

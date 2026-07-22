@@ -1,9 +1,9 @@
 use crate::config::LastFmConfig;
 use crate::event::{NowPlayingEvent, PlayEvent};
-use anyhow::Result;
-use std::collections::BTreeMap;
 use crate::targets::ScrobbleTarget;
+use anyhow::Result;
 use async_trait::async_trait;
+use std::collections::BTreeMap;
 
 const LFM_BASE_URL: &str = "https://ws.audioscrobbler.com";
 
@@ -14,7 +14,10 @@ pub struct LastFmTarget {
 
 impl LastFmTarget {
     pub fn from_config(cfg: &LastFmConfig, client: reqwest::Client) -> Self {
-        Self { cfg: cfg.clone(), client }
+        Self {
+            cfg: cfg.clone(),
+            client,
+        }
     }
 }
 
@@ -58,7 +61,10 @@ pub async fn submit_to(
     params.insert("sk".to_string(), cfg.session_key.clone());
     params.insert("artist[0]".to_string(), event.artist.clone());
     params.insert("track[0]".to_string(), event.track.clone());
-    params.insert("timestamp[0]".to_string(), event.played_at.timestamp().to_string());
+    params.insert(
+        "timestamp[0]".to_string(),
+        event.played_at.timestamp().to_string(),
+    );
     if let Some(album) = &event.album {
         params.insert("album[0]".to_string(), album.clone());
     }
@@ -227,7 +233,9 @@ mod tests {
         let mut server = mockito::Server::new_async().await;
         let mock = server
             .mock("POST", "/2.0/")
-            .match_body(mockito::Matcher::Regex("method=track.updateNowPlaying".to_string()))
+            .match_body(mockito::Matcher::Regex(
+                "method=track.updateNowPlaying".to_string(),
+            ))
             .with_status(200)
             .with_body(r#"{"nowplaying":{"artist":{"#)
             .create_async()

@@ -46,19 +46,27 @@ async fn validate_token_handler(
     headers: HeaderMap,
 ) -> impl IntoResponse {
     if !authorized(&headers, &state.cfg.server.webhook_token) {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({
-            "code": 401,
-            "message": "Token invalid.",
-            "valid": false
-        }))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "code": 401,
+                "message": "Token invalid.",
+                "valid": false
+            })),
+        )
+            .into_response();
     }
     println!("[REQ] GET /validate-token");
-    (StatusCode::OK, Json(serde_json::json!({
-        "code": 200,
-        "message": "Token valid.",
-        "valid": true,
-        "user_name": "scrobgoblin"
-    }))).into_response()
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "code": 200,
+            "message": "Token valid.",
+            "valid": true,
+            "user_name": "scrobgoblin"
+        })),
+    )
+        .into_response()
 }
 
 /// Returns true if the request is authorized.
@@ -94,7 +102,11 @@ async fn navidrome_handler(
     Json(body): Json<sources::navidrome::LbPayload>,
 ) -> impl IntoResponse {
     if !authorized(&headers, &state.cfg.server.webhook_token) {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"status": "error", "error": "invalid token"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"status": "error", "error": "invalid token"})),
+        )
+            .into_response();
     }
     if body.listen_type.as_deref() == Some("playing_now") {
         match sources::navidrome::parse_now_playing(&body) {
@@ -106,10 +118,23 @@ async fn navidrome_handler(
         }
         return lb_ok().into_response();
     }
-    let ts_info = body.payload.first()
-        .map(|l| format!(" listened_at={}", l.listened_at.map(|t| t.to_string()).unwrap_or_else(|| "none".into())))
+    let ts_info = body
+        .payload
+        .first()
+        .map(|l| {
+            format!(
+                " listened_at={}",
+                l.listened_at
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|| "none".into())
+            )
+        })
         .unwrap_or_default();
-    println!("[REQ] POST /1/submit-listens ({} listen(s)){}",  body.payload.len(), ts_info);
+    println!(
+        "[REQ] POST /1/submit-listens ({} listen(s)){}",
+        body.payload.len(),
+        ts_info
+    );
     match sources::navidrome::parse(&body) {
         Ok(event) if threshold::qualifies(&event) => {
             tokio::spawn(targets::fan_out(state.targets.clone(), event));
@@ -118,13 +143,19 @@ async fn navidrome_handler(
         Ok(_) => lb_ok().into_response(),
         Err(e) => {
             eprintln!("[WARN] Navidrome parse error: {}", e);
-            (StatusCode::BAD_REQUEST, Json(serde_json::json!({"status": "error"}))).into_response()
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"status": "error"})),
+            )
+                .into_response()
         }
     }
 }
 
 async fn plex_missing_token_handler() -> StatusCode {
-    eprintln!("[WARN] Plex webhook received at /webhooks/plex — update URL to /webhooks/plex/{{token}}");
+    eprintln!(
+        "[WARN] Plex webhook received at /webhooks/plex — update URL to /webhooks/plex/{{token}}"
+    );
     StatusCode::NOT_FOUND
 }
 
@@ -169,7 +200,10 @@ async fn plex_handler(
         "media.play" | "media.resume" => {
             match sources::plex::parse_now_playing(&plex_payload) {
                 Ok(event) => {
-                    println!("[REQ] playing_now (plex) | {} - {}", event.artist, event.track);
+                    println!(
+                        "[REQ] playing_now (plex) | {} - {}",
+                        event.artist, event.track
+                    );
                     tokio::spawn(targets::fan_out_now_playing(state.targets.clone(), event));
                 }
                 Err(e) => eprintln!("[WARN] Plex now-playing parse error: {}", e),
@@ -208,7 +242,10 @@ async fn jellyfin_handler(
         "PlaybackStart" => {
             match sources::jellyfin::parse_now_playing(&body) {
                 Ok(event) => {
-                    println!("[REQ] playing_now (jellyfin) | {} - {}", event.artist, event.track);
+                    println!(
+                        "[REQ] playing_now (jellyfin) | {} - {}",
+                        event.artist, event.track
+                    );
                     tokio::spawn(targets::fan_out_now_playing(state.targets.clone(), event));
                 }
                 Err(e) => eprintln!("[WARN] Jellyfin now-playing parse error: {}", e),
@@ -238,11 +275,16 @@ mod tests {
 
     fn test_app_plex_token(plex_token: Option<&str>) -> Router {
         let cfg = Config {
-            server: crate::config::ServerConfig { port: 4567, webhook_token: None },
+            server: crate::config::ServerConfig {
+                port: 4567,
+                webhook_token: None,
+            },
             plex: crate::config::PlexConfig {
                 webhook_token: plex_token.map(|s| s.to_string()),
             },
-            jellyfin: crate::config::JellyfinConfig { webhook_token: None },
+            jellyfin: crate::config::JellyfinConfig {
+                webhook_token: None,
+            },
             koito: Some(crate::config::KoitoConfig {
                 base_url: "http://k".into(),
                 api_key: "k".into(),
@@ -260,7 +302,10 @@ mod tests {
             }),
         };
         let targets = targets::build_targets(&cfg, reqwest::Client::new());
-        build_router(AppState { cfg: Arc::new(cfg), targets })
+        build_router(AppState {
+            cfg: Arc::new(cfg),
+            targets,
+        })
     }
 
     #[tokio::test]
@@ -319,8 +364,13 @@ mod tests {
 
     fn test_app_jellyfin_token(jellyfin_token: Option<&str>) -> Router {
         let cfg = Config {
-            server: crate::config::ServerConfig { port: 4567, webhook_token: None },
-            plex: crate::config::PlexConfig { webhook_token: None },
+            server: crate::config::ServerConfig {
+                port: 4567,
+                webhook_token: None,
+            },
+            plex: crate::config::PlexConfig {
+                webhook_token: None,
+            },
             jellyfin: crate::config::JellyfinConfig {
                 webhook_token: jellyfin_token.map(|s| s.to_string()),
             },
@@ -341,7 +391,10 @@ mod tests {
             }),
         };
         let targets = targets::build_targets(&cfg, reqwest::Client::new());
-        build_router(AppState { cfg: Arc::new(cfg), targets })
+        build_router(AppState {
+            cfg: Arc::new(cfg),
+            targets,
+        })
     }
 
     #[tokio::test]
@@ -354,7 +407,9 @@ mod tests {
                     .uri("/webhooks/jellyfin")
                     .header("content-type", "application/json")
                     .header("x-scroblin-token", "wrong")
-                    .body(Body::from(r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#))
+                    .body(Body::from(
+                        r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#,
+                    ))
                     .unwrap(),
             )
             .await
@@ -371,7 +426,9 @@ mod tests {
                     .method("POST")
                     .uri("/webhooks/jellyfin")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#))
+                    .body(Body::from(
+                        r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#,
+                    ))
                     .unwrap(),
             )
             .await
@@ -390,7 +447,9 @@ mod tests {
                     .method("POST")
                     .uri("/webhooks/jellyfin")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#))
+                    .body(Body::from(
+                        r#"{"NotificationType":"PlaybackStopped","Name":"Track"}"#,
+                    ))
                     .unwrap(),
             )
             .await
@@ -426,9 +485,16 @@ mod tests {
         // All forward_now_playing flags set to false so fan_out_now_playing
         // does not make real HTTP calls during tests.
         let cfg = Config {
-            server: crate::config::ServerConfig { port: 4567, webhook_token: None },
-            plex: crate::config::PlexConfig { webhook_token: None },
-            jellyfin: crate::config::JellyfinConfig { webhook_token: None },
+            server: crate::config::ServerConfig {
+                port: 4567,
+                webhook_token: None,
+            },
+            plex: crate::config::PlexConfig {
+                webhook_token: None,
+            },
+            jellyfin: crate::config::JellyfinConfig {
+                webhook_token: None,
+            },
             koito: Some(crate::config::KoitoConfig {
                 base_url: "http://k".into(),
                 api_key: "k".into(),
@@ -446,7 +512,10 @@ mod tests {
             }),
         };
         let targets = targets::build_targets(&cfg, reqwest::Client::new());
-        build_router(AppState { cfg: Arc::new(cfg), targets })
+        build_router(AppState {
+            cfg: Arc::new(cfg),
+            targets,
+        })
     }
 
     fn plex_nowplaying_request(event_type: &str) -> http::Request<Body> {
@@ -469,21 +538,30 @@ mod tests {
     #[tokio::test]
     async fn plex_handler_returns_200_for_media_play() {
         let app = test_app_plex_nowplaying();
-        let response = app.oneshot(plex_nowplaying_request("media.play")).await.unwrap();
+        let response = app
+            .oneshot(plex_nowplaying_request("media.play"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
     async fn plex_handler_returns_200_for_media_resume() {
         let app = test_app_plex_nowplaying();
-        let response = app.oneshot(plex_nowplaying_request("media.resume")).await.unwrap();
+        let response = app
+            .oneshot(plex_nowplaying_request("media.resume"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
     async fn plex_handler_returns_200_for_unrecognised_event() {
         let app = test_app_plex_nowplaying();
-        let response = app.oneshot(plex_nowplaying_request("media.stop")).await.unwrap();
+        let response = app
+            .oneshot(plex_nowplaying_request("media.stop"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
     }
 }

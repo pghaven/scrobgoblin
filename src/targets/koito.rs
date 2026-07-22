@@ -1,6 +1,6 @@
 use crate::event::{NowPlayingEvent, PlayEvent};
-use anyhow::Result;
 use crate::targets::ScrobbleTarget;
+use anyhow::Result;
 use async_trait::async_trait;
 
 pub struct KoitoTarget {
@@ -10,7 +10,10 @@ pub struct KoitoTarget {
 
 impl KoitoTarget {
     pub fn from_config(cfg: &crate::config::KoitoConfig, client: reqwest::Client) -> Self {
-        Self { cfg: cfg.clone(), client }
+        Self {
+            cfg: cfg.clone(),
+            client,
+        }
     }
 }
 

@@ -75,7 +75,8 @@ mod tests {
     use super::*;
 
     fn scrobble_payload() -> PlexPayload {
-        serde_json::from_str(r#"{
+        serde_json::from_str(
+            r#"{
             "event": "media.scrobble",
             "Metadata": {
                 "grandparentTitle": "Radiohead",
@@ -83,7 +84,9 @@ mod tests {
                 "title": "Karma Police",
                 "duration": 264000
             }
-        }"#).unwrap()
+        }"#,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -98,16 +101,20 @@ mod tests {
 
     #[test]
     fn rejects_non_scrobble_events() {
-        let payload: PlexPayload = serde_json::from_str(r#"{
+        let payload: PlexPayload = serde_json::from_str(
+            r#"{
             "event": "media.play",
             "Metadata": { "title": "Track", "grandparentTitle": "Artist" }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         assert!(parse(&payload).is_err());
     }
 
     #[test]
     fn parse_now_playing_accepts_media_play() {
-        let payload: PlexPayload = serde_json::from_str(r#"{
+        let payload: PlexPayload = serde_json::from_str(
+            r#"{
             "event": "media.play",
             "Metadata": {
                 "grandparentTitle": "Radiohead",
@@ -115,7 +122,9 @@ mod tests {
                 "title": "Karma Police",
                 "duration": 264000
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         let event = parse_now_playing(&payload).unwrap();
         assert_eq!(event.artist, "Radiohead");
         assert_eq!(event.album.as_deref(), Some("OK Computer"));
@@ -126,13 +135,16 @@ mod tests {
 
     #[test]
     fn parse_now_playing_accepts_media_resume() {
-        let payload: PlexPayload = serde_json::from_str(r#"{
+        let payload: PlexPayload = serde_json::from_str(
+            r#"{
             "event": "media.resume",
             "Metadata": {
                 "grandparentTitle": "Portishead",
                 "title": "Glory Box"
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         let event = parse_now_playing(&payload).unwrap();
         assert_eq!(event.artist, "Portishead");
         assert_eq!(event.track, "Glory Box");
@@ -143,24 +155,30 @@ mod tests {
     #[test]
     fn uses_title_sort_when_title_is_blank() {
         // Plex sometimes stores the real track name only in titleSort.
-        let payload: PlexPayload = serde_json::from_str(r#"{
+        let payload: PlexPayload = serde_json::from_str(
+            r#"{
             "event": "media.play",
             "Metadata": {
                 "grandparentTitle": "a‐ha",
                 "title": "",
                 "titleSort": "Take On Me"
             }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         let event = parse_now_playing(&payload).unwrap();
         assert_eq!(event.track, "Take On Me");
     }
 
     #[test]
     fn parse_now_playing_rejects_non_play_events() {
-        let payload: PlexPayload = serde_json::from_str(r#"{
+        let payload: PlexPayload = serde_json::from_str(
+            r#"{
             "event": "media.stop",
             "Metadata": { "title": "Track", "grandparentTitle": "Artist" }
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         assert!(parse_now_playing(&payload).is_err());
     }
 }

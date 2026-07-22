@@ -11,8 +11,8 @@ use std::sync::Arc;
 async fn main() -> anyhow::Result<()> {
     let config_str = std::fs::read_to_string("config.toml")
         .map_err(|e| anyhow::anyhow!("failed to read config.toml: {}", e))?;
-    let cfg: config::Config = toml::from_str(&config_str)
-        .map_err(|e| anyhow::anyhow!("invalid config.toml: {}", e))?;
+    let cfg: config::Config =
+        toml::from_str(&config_str).map_err(|e| anyhow::anyhow!("invalid config.toml: {}", e))?;
 
     let port = cfg.server.port;
     let client = reqwest::Client::new();

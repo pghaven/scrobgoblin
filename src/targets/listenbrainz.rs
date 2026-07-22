@@ -14,7 +14,10 @@ pub struct ListenBrainzTarget {
 
 impl ListenBrainzTarget {
     pub fn from_config(cfg: &crate::config::ListenBrainzConfig, client: reqwest::Client) -> Self {
-        Self { cfg: cfg.clone(), client }
+        Self {
+            cfg: cfg.clone(),
+            client,
+        }
     }
 }
 
@@ -145,9 +148,18 @@ mod tests {
         let payload = build_lb_payload(&event);
         assert_eq!(payload["listen_type"], "single");
         assert_eq!(payload["payload"][0]["listened_at"], 1700000000i64);
-        assert_eq!(payload["payload"][0]["track_metadata"]["artist_name"], "Massive Attack");
-        assert_eq!(payload["payload"][0]["track_metadata"]["track_name"], "Teardrop");
-        assert_eq!(payload["payload"][0]["track_metadata"]["release_name"], "Mezzanine");
+        assert_eq!(
+            payload["payload"][0]["track_metadata"]["artist_name"],
+            "Massive Attack"
+        );
+        assert_eq!(
+            payload["payload"][0]["track_metadata"]["track_name"],
+            "Teardrop"
+        );
+        assert_eq!(
+            payload["payload"][0]["track_metadata"]["release_name"],
+            "Mezzanine"
+        );
     }
 
     #[test]
@@ -198,9 +210,18 @@ mod tests {
         let payload = build_now_playing_payload(&event);
         assert_eq!(payload["listen_type"], "playing_now");
         assert!(payload["payload"][0]["listened_at"].is_null());
-        assert_eq!(payload["payload"][0]["track_metadata"]["artist_name"], "Massive Attack");
-        assert_eq!(payload["payload"][0]["track_metadata"]["track_name"], "Teardrop");
-        assert_eq!(payload["payload"][0]["track_metadata"]["additional_info"]["duration"], 330u64);
+        assert_eq!(
+            payload["payload"][0]["track_metadata"]["artist_name"],
+            "Massive Attack"
+        );
+        assert_eq!(
+            payload["payload"][0]["track_metadata"]["track_name"],
+            "Teardrop"
+        );
+        assert_eq!(
+            payload["payload"][0]["track_metadata"]["additional_info"]["duration"],
+            330u64
+        );
     }
 
     #[tokio::test]

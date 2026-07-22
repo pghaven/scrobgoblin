@@ -30,7 +30,10 @@ pub struct LbAdditionalInfo {
 }
 
 pub fn parse(body: &LbPayload) -> Result<PlayEvent> {
-    let listen = body.payload.first().ok_or_else(|| anyhow!("empty payload"))?;
+    let listen = body
+        .payload
+        .first()
+        .ok_or_else(|| anyhow!("empty payload"))?;
     let meta = &listen.track_metadata;
 
     let played_at = listen
@@ -54,7 +57,10 @@ pub fn parse(body: &LbPayload) -> Result<PlayEvent> {
 }
 
 pub fn parse_now_playing(body: &LbPayload) -> Result<NowPlayingEvent> {
-    let listen = body.payload.first().ok_or_else(|| anyhow!("empty payload"))?;
+    let listen = body
+        .payload
+        .first()
+        .ok_or_else(|| anyhow!("empty payload"))?;
     let meta = &listen.track_metadata;
 
     let duration_secs = meta.additional_info.as_ref().and_then(|info| {
@@ -76,7 +82,8 @@ mod tests {
     use super::*;
 
     fn sample_payload() -> LbPayload {
-        serde_json::from_str(r#"{
+        serde_json::from_str(
+            r#"{
             "listen_type": "single",
             "payload": [{
                 "listened_at": 1700000000,
@@ -87,7 +94,9 @@ mod tests {
                     "additional_info": { "duration": 431 }
                 }
             }]
-        }"#).unwrap()
+        }"#,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -102,7 +111,8 @@ mod tests {
 
     #[test]
     fn parses_payload_without_additional_info() {
-        let body: LbPayload = serde_json::from_str(r#"{
+        let body: LbPayload = serde_json::from_str(
+            r#"{
             "listen_type": "single",
             "payload": [{
                 "track_metadata": {
@@ -110,7 +120,9 @@ mod tests {
                     "track_name": "Track"
                 }
             }]
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         let event = parse(&body).unwrap();
         assert_eq!(event.duration_secs, None);
         assert_eq!(event.album, None);
@@ -124,7 +136,8 @@ mod tests {
 
     #[test]
     fn captures_playing_now_listen_type() {
-        let body: LbPayload = serde_json::from_str(r#"{
+        let body: LbPayload = serde_json::from_str(
+            r#"{
             "listen_type": "playing_now",
             "payload": [{
                 "track_metadata": {
@@ -132,13 +145,16 @@ mod tests {
                     "track_name": "Track"
                 }
             }]
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         assert_eq!(body.listen_type.as_deref(), Some("playing_now"));
     }
 
     #[test]
     fn parses_now_playing_event() {
-        let body: LbPayload = serde_json::from_str(r#"{
+        let body: LbPayload = serde_json::from_str(
+            r#"{
             "listen_type": "playing_now",
             "payload": [{
                 "track_metadata": {
@@ -148,7 +164,9 @@ mod tests {
                     "additional_info": { "duration": 249 }
                 }
             }]
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
         let event = parse_now_playing(&body).unwrap();
         assert_eq!(event.artist, "Portishead");
         assert_eq!(event.track, "Glory Box");
