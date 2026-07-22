@@ -2,6 +2,9 @@
 name = "scrobgoblin"
 version = "0.1.0"
 edition = "2021"
+description = "Webhook server that normalizes play events from Navidrome, Plex, and Jellyfin and fans them out to Koito, ListenBrainz, and Last.fm"
+license = "MIT"
+repository = "https://github.com/pghaven/scrobgoblin"
 
 [dependencies]
 anyhow = "1"

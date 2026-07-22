@@ -150,6 +150,14 @@ cargo build --release
 docker build -t scrobgoblin:latest .
 ```
 
+## Testing
+
+```bash
+cargo test
+```
+
+75 tests covering source parsers (Navidrome/Plex/Jellyfin), all three scrobble targets, threshold filtering, retry/backoff, and fan-out dispatch. CI runs the full suite plus `cargo clippy` and `cargo fmt --check` on every push.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
