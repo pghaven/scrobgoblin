@@ -1,5 +1,7 @@
 # Scrobgoblin 👺
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **One webhook listener. Every scrobble target.**
 
 Scrobgoblin is a small, fast Rust service (built on [axum](https://github.com/tokio-rs/axum)) that sits between your self-hosted media servers and your scrobbling services. It exposes a **ListenBrainz-compatible API**, so anything that already knows how to scrobble to ListenBrainz — Navidrome included — can point at Scrobgoblin instead just by changing a URL. It also accepts native Plex and Jellyfin webhooks directly. Every play event is normalized and fanned out — concurrently — to Koito, ListenBrainz, and Last.fm.
@@ -146,3 +148,7 @@ Leaving a `webhook_token` unset (or blank) allows all requests for that source �
 cargo build --release
 docker build -t scrobgoblin:latest .
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
