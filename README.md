@@ -1,5 +1,6 @@
 # Scrobgoblin 👺
 
+[![CI](https://github.com/pghaven/scrobgoblin/actions/workflows/ci.yml/badge.svg)](https://github.com/pghaven/scrobgoblin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **One webhook listener. Every scrobble target.**
