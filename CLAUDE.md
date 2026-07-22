@@ -69,6 +69,8 @@ Webhook POST → source parser → NowPlayingEvent → fan_out_now_playing
 
 **Router** (`src/router.rs`): `AppState` holds `Arc<Config>` and a shared `reqwest::Client`. Fan-out is detached via `tokio::spawn` so the webhook handler returns 200 immediately. All three source handlers use an explicit `match` on the event type string, mirroring the same pattern: play/resume/start → now-playing, scrobble/stop → scrobble, anything else → 200 silently. `token_matches(expected: Option<&str>, provided: &str) -> bool` handles per-source auth; `None` and `Some("")` both treat as open.
 
+**Startup logging** (`src/main.rs`): after `build_targets`, logs `Active scrobble targets: <names>` or a `[WARN]` if the list is empty — useful for confirming `config.toml` section names (`[koito]`/`[listenbrainz]`/`[lastfm]`) loaded correctly.
+
 ## Key Patterns
 
 - Last.fm scrobble: params have `[0]` suffix (`artist[0]`, `track[0]`, `timestamp[0]`); now-playing uses bare names (`artist`, `track`) — different methods, different param formats
@@ -80,6 +82,7 @@ Webhook POST → source parser → NowPlayingEvent → fan_out_now_playing
 - Jellyfin webhook auth: `X-Scroblin-Token` header. Fixed header name — not configurable.
 - LB `playing_now` payload: `additional_info` must be nested inside `track_metadata`, not at the listen level
 - `NowPlayingEvent` vs `PlayEvent`: same fields minus `played_at`; `build_now_playing_payload` (listenbrainz.rs) is reused by Koito since they share the LB wire format
+- Navidrome/ListenBrainz auth: separate from Plex/Jellyfin's `token_matches()` — uses `authorized()` in router.rs, checking `Authorization: Token <server.webhook_token>` header against `ServerConfig.webhook_token`. Applies to `/1/submit-listens`, `/submit-listens`, and `/validate-token`.
 
 ## Navidrome Gotchas
 
