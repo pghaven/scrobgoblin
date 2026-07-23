@@ -148,9 +148,46 @@ Code is deployed. **Production testing not yet complete** — user is testing Pl
 - No mem_limit set — footprint is ~8 MB, well within safe range
 - Navidrome env vars: `ND_LISTENBRAINZ_BASEURL=http://host.docker.internal:4567`, `ND_LISTENBRAINZ_APIKEY=<webhook_token value>`
 
+## Session 6 — README Overhaul, License, and GitHub CI (2026-07-22)
+
+Scope was documentation/presentation and repo tooling, not application code (aside from a formatting-only pass) — aimed at making the project's GitHub mirror (`github.com/pghaven/scrobgoblin`) more presentable to outside viewers, e.g. recruiters.
+
+### What was built
+
+- **README.md rewritten** — added a "Why" section, feature list, corrected the Plex webhook URL (`/webhooks/plex/{token}`, not `/webhooks/plex`), documented the Jellyfin webhook template requirement, replaced the stale "no authentication" security note with an accurate table of the three sources' actual auth mechanisms (Navidrome header token, Plex URL token, Jellyfin header token), and genericized example hostnames (was `scrobgoblin:4567`, specific to this deployment).
+- **CLAUDE.md** — added two gaps found during the README review: the Navidrome `authorized()` auth function (distinct from `token_matches()` used by Plex/Jellyfin) wasn't documented anywhere, and the startup active-targets log line (`main.rs`) wasn't mentioned.
+- **LICENSE added** — MIT, chosen over Apache-2.0/dual/GPL for simplicity; this is a personal self-hosted tool, not a published crate.
+- **GitHub Actions CI** (`.github/workflows/ci.yml`) — runs on push/PR to `main`: `cargo build`, `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`. Since Forgejo replicates to GitHub, the workflow file rides along and GitHub runs it on the mirror automatically — confirmed working (run #2, commit `f890ea5`, success).
+- **`cargo fmt` applied repo-wide** (formatting-only, separate commit `ecb7768`) — required before turning on the `fmt --check` CI gate, since the existing code wasn't rustfmt-clean. All 75 tests re-verified passing after.
+- **Cargo.toml metadata filled in** — `description`, `license = "MIT"`, `repository` were previously blank.
+- **README** now states the test count (75 tests) and that CI runs clippy/fmt.
+- **Tagged `v0.1.0`** — first version tag, pushed and replicated to GitHub.
+- **Badges added to README** — CI status and MIT license, both confirmed rendering against the live GitHub mirror.
+
+### GitHub web UI polish — completed
+
+All done manually on `github.com/pghaven/scrobgoblin`:
+
+1. **Repo topics added** — `rust`, `axum`, `self-hosted`, `webhook`, `listenbrainz`, `scrobbler`, `navidrome`, `plex`, `jellyfin`, `docker`
+2. **Unused tabs disabled** — Wikis and Projects turned off (Settings → General → Features)
+3. **`v0.1.0` release published** — from the existing tag, with release notes summarizing the initial feature set (webhook normalization, all three sources/targets, retry/backoff, Docker deployment, 75 tests, CI)
+
+### Rust edition badge added
+
+Added a `![Rust Edition](...)` badge to README (commit `1ca635f`, pushed). Chose an **edition 2021** badge over an MSRV badge since no minimum-supported-Rust-version has actually been tested/pinned — an edition badge is accurate without needing that verification work.
+
+### Deliberately deferred
+
+- **Test-count badge** — needs CI plumbing (parsing `cargo test` output, pushing to a badge service) or a coverage tool; deferred as a future task, not started.
+- **Code coverage badge** (`cargo-tarpaulin` + Codecov or similar) — explicitly deferred since Session 6, still not started.
+
+---
+
 ## Next Steps
 
 1. **Complete Plex/Jellyfin auth testing** — configure tokens in production `config.toml`, set webhook URLs/headers in each client, verify scrobbles flow through and 401s appear on mismatched tokens (see Session 5 for exact config steps)
 2. **Koito now-playing** — test Koito deduplication behaviour, then enable `forward_now_playing = true` in `config.toml` under `[koito]` if confirmed safe
 3. **Test Plex scrobbles** (#4) and **Test Jellyfin scrobbles** (#5) — neither source has been tested in production yet
 4. **Structured logging** (`tracing` crate) — nice-to-have for log aggregation
+5. **Test-count badge** — deferred; needs CI plumbing to parse `cargo test` output and push to a badge service (or a coverage tool)
+6. **Optional: code coverage badge** (`cargo-tarpaulin`/Codecov) — explicitly deferred, not yet started
