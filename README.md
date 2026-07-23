@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/pghaven/scrobgoblin/actions/workflows/ci.yml/badge.svg)](https://github.com/pghaven/scrobgoblin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Rust Edition](https://img.shields.io/badge/edition-2021-orange.svg)](Cargo.toml)
 
 **One webhook listener. Every scrobble target.**
 
